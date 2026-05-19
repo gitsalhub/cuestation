@@ -450,10 +450,17 @@ const FloorMap = () => {
       if (Math.abs(cash + upi - endAmount) > 0.01) return toast.error("Cash + UPI must equal total");
     }
 
+    // total_amount = gross bill (game + items), unaffected by override or advances.
+    // override_amount (when set) = effective amount the customer paid in total
+    //   (= what they pay at end + any advances already paid).
+    // cash_amount / upi_amount = what was collected at end-of-session only.
+    // Advances are tracked in session_advances and added on top in analytics.
+    const grossTotal = +(endGame + endItems).toFixed(2);
+    const effectivePaid = overrideOn ? +(endAmount + endAdvances).toFixed(2) : null;
     const { error: updErr } = await supabase.from("sessions").update({
       ended_at: new Date().toISOString(), status: "completed",
-      game_amount: endGame, items_amount: endItems, total_amount: endAmount,
-      override_amount: overrideOn ? endAmount : null,
+      game_amount: endGame, items_amount: endItems, total_amount: grossTotal,
+      override_amount: effectivePaid,
       override_reason: overrideOn ? (overrideReason || null) : null,
       applied_offer_id: endOfferId !== "none" ? endOfferId : null,
       payment_method: payMethod, cash_amount: cash, upi_amount: upi,

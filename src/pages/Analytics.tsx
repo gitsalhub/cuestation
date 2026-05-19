@@ -65,11 +65,13 @@ const Analytics = () => {
     const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
     const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
     const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
+    const advQ = supabase.from("session_advances").select("amount, payment_method, cash_amount, upi_amount, created_at").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
 
-    Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
+    Promise.all([sessQ, billsQ, expQ, advQ]).then(async ([s, b, e, adv]) => {
       const sessions = (s.data || []) as any[];
       const bills = (b.data || []) as any[];
       const expenses = (e.data || []) as any[];
+      const advances = (adv.data || []) as any[];
       setAllSessions(sessions);
 
       const billIds = bills.map((x) => x.id);
@@ -77,34 +79,39 @@ const Analytics = () => {
       const sessionIds = sessions.map((x) => x.id).filter(Boolean);
       const { data: sItems } = sessionIds.length ? await supabase.from("session_items").select("session_id, product_name, qty, price").in("session_id", sessionIds) : { data: [] as any[] };
 
-      // Separate overridden from normal — overrides excluded from revenue/cash/upi totals
-      const normalSessions = sessions.filter((x) => x.override_amount == null);
-      const overrideSessions = sessions.filter((x) => x.override_amount != null);
-      const normalBills = bills.filter((x) => x.override_amount == null);
-      const overrideBills = bills.filter((x) => x.override_amount != null);
+      // Override semantics:
+      //   total_amount / total = original gross bill
+      //   override_amount (when set) = effective amount actually paid
+      //   override "loss" = gross − paid (shown in Overrides card)
+      // Revenue, cash/upi, gaming all count the effective paid amount.
+      const sessPaid = (x: any) => x.override_amount != null ? Number(x.override_amount) : Number(x.total_amount || 0);
+      const billPaid = (x: any) => x.override_amount != null ? Number(x.override_amount) : Number(x.total || 0);
+      const sessLoss = (x: any) => x.override_amount != null ? Math.max(0, Number(x.total_amount || 0) - Number(x.override_amount)) : 0;
+      const billLoss = (x: any) => x.override_amount != null ? Math.max(0, Number(x.total || 0) - Number(x.override_amount)) : 0;
 
-      // Daily revenue + expense (use non-overridden totals)
+      // Daily revenue + expense (effective paid)
       const revMap: Record<string, number> = {};
       const expMap: Record<string, number> = {};
-      normalSessions.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + Number(x.total_amount || 0); });
-      normalBills.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + Number(x.total || 0); });
+      sessions.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + sessPaid(x); });
+      bills.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + billPaid(x); });
       expenses.forEach((x) => { const k = (x.expense_date || "").slice(0, 10); expMap[k] = (expMap[k] || 0) + Number(x.amount || 0); });
       const allDates = Array.from(new Set([...Object.keys(revMap), ...Object.keys(expMap)])).sort();
       setByDay(allDates.map((d) => ({ date: d.slice(5), revenue: revMap[d] || 0, expense: expMap[d] || 0 })));
 
-      // Asset stats (from non-overridden sessions)
+      // Asset stats — gaming portion. For overridden sessions, attribute the
+      // effective paid amount entirely to gaming (per business rule).
       const am: Record<string, { name: string; revenue: number; sessions: number }> = {};
-      normalSessions.forEach((x) => {
+      sessions.forEach((x) => {
         const name = x.assets?.name || "—";
         if (!am[name]) am[name] = { name, revenue: 0, sessions: 0 };
-        am[name].revenue += Number(x.game_amount || 0);
+        am[name].revenue += x.override_amount != null ? Number(x.override_amount) : Number(x.game_amount || 0);
         am[name].sessions += 1;
       });
       setAssetRows(Object.values(am).sort((a, b) => b.revenue - a.revenue));
 
-      // Products (count items from non-overridden bills/sessions)
-      const normalBillIds = new Set(normalBills.map((x) => x.id));
-      const normalSessIds = new Set(normalSessions.map((x) => x.id));
+      // Products — exclude items linked to overridden bills/sessions (override absorbs the whole bill)
+      const normalBillIds = new Set(bills.filter((x) => x.override_amount == null).map((x) => x.id));
+      const normalSessIds = new Set(sessions.filter((x) => x.override_amount == null).map((x) => x.id));
       const pm: Record<string, { name: string; revenue: number; qty: number }> = {};
       ((bItems || []) as any[]).filter((it: any) => normalBillIds.has(it.bill_id)).forEach((it: any) => {
         const name = it.product_name || "—";
@@ -120,33 +127,44 @@ const Analytics = () => {
       });
       setProductRows(Object.values(pm).sort((a, b) => b.revenue - a.revenue));
 
-      // Totals
-      const gaming = normalSessions.reduce((s, x) => s + Number(x.game_amount || 0), 0);
-      const productSale = normalSessions.reduce((s, x) => s + Number(x.items_amount || 0), 0)
-                       + normalBills.reduce((s, x) => s + Number(x.total || 0), 0);
+      // Totals — include overridden bills (paid value)
+      const gaming = sessions.reduce((s, x) => s + (x.override_amount != null ? Number(x.override_amount) : Number(x.game_amount || 0)), 0);
+      const productSale = sessions.reduce((s, x) => s + (x.override_amount != null ? 0 : Number(x.items_amount || 0)), 0)
+                       + bills.reduce((s, x) => s + billPaid(x), 0);
       const total = gaming + productSale;
       const expensesTotal = expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
 
+      // Cash / UPI — what was actually collected. For overridden rows, the
+      // cash_amount/upi_amount columns already hold the paid (end-of-session)
+      // split. Advances are tracked separately and added on top.
       let cash = 0, upi = 0;
       const sumPay = (rows: any[], totalKey: string) => {
         for (const r of rows) {
-          const t = Number(r[totalKey] || 0);
+          const paid = r.override_amount != null ? Number(r.override_amount) : Number(r[totalKey] || 0);
           const c = Number(r.cash_amount || 0);
           const u = Number(r.upi_amount || 0);
           if (r.payment_method === "split") { cash += c; upi += u; }
-          else if (r.payment_method === "cash") cash += t;
-          else if (r.payment_method === "upi") upi += t;
+          else if (r.payment_method === "cash") cash += paid;
+          else if (r.payment_method === "upi") upi += paid;
           else if (r.payment_method === "transfer") { /* deferred */ }
           else { cash += c; upi += u; }
         }
       };
-      sumPay(normalSessions, "total_amount");
-      sumPay(normalBills, "total");
+      sumPay(sessions, "total_amount");
+      sumPay(bills, "total");
+      // Add advance payments to cash/UPI
+      for (const a of advances) {
+        const amt = Number(a.amount || 0);
+        if (a.payment_method === "cash") cash += amt;
+        else if (a.payment_method === "upi") upi += amt;
+        else { cash += Number(a.cash_amount || 0); upi += Number(a.upi_amount || 0); }
+      }
 
-      // Overrides: sum of override_amount (the overridden final value)
-      const overrides = overrideSessions.reduce((s, x) => s + Number(x.override_amount || 0), 0)
-                      + overrideBills.reduce((s, x) => s + Number(x.override_amount || 0), 0);
-      const overridesCount = overrideSessions.length + overrideBills.length;
+      // Overrides card = total amount given up across overridden rows
+      const overrides = sessions.reduce((s, x) => s + sessLoss(x), 0)
+                      + bills.reduce((s, x) => s + billLoss(x), 0);
+      const overridesCount = sessions.filter((x) => x.override_amount != null).length
+                           + bills.filter((x) => x.override_amount != null).length;
 
       const ec: Record<string, number> = {};
       expenses.forEach((x) => { ec[x.category || "general"] = (ec[x.category || "general"] || 0) + Number(x.amount || 0); });
@@ -169,32 +187,30 @@ const Analytics = () => {
         if (!sm[uid]) sm[uid] = { id: uid, name: nameMap[uid] || "Unknown", revenue: 0, sessions: 0, bills: 0, override: 0, discount: 0, cash: 0, upi: 0 };
         return sm[uid];
       };
+      // Staff: revenue counts the effective paid amount (includes overridden),
+      // and the "Override" column shows the loss (gross − paid).
       sessions.forEach((x: any) => {
         if (!x.started_by) return;
         const r = ensure(x.started_by);
         r.sessions += 1;
-        if (x.override_amount != null) {
-          r.override += Number(x.override_amount || 0);
-        } else {
-          r.revenue += Number(x.total_amount || 0);
-          if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
-          else if (x.payment_method === "cash") r.cash += Number(x.total_amount || 0);
-          else if (x.payment_method === "upi") r.upi += Number(x.total_amount || 0);
-        }
+        const paid = sessPaid(x);
+        r.revenue += paid;
+        r.override += sessLoss(x);
+        if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
+        else if (x.payment_method === "cash") r.cash += paid;
+        else if (x.payment_method === "upi") r.upi += paid;
         r.discount += Number(x.discount_amount || 0);
       });
       bills.forEach((x: any) => {
         if (!x.created_by) return;
         const r = ensure(x.created_by);
         r.bills += 1;
-        if (x.override_amount != null) {
-          r.override += Number(x.override_amount || 0);
-        } else {
-          r.revenue += Number(x.total || 0);
-          if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
-          else if (x.payment_method === "cash") r.cash += Number(x.total || 0);
-          else if (x.payment_method === "upi") r.upi += Number(x.total || 0);
-        }
+        const paid = billPaid(x);
+        r.revenue += paid;
+        r.override += billLoss(x);
+        if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
+        else if (x.payment_method === "cash") r.cash += paid;
+        else if (x.payment_method === "upi") r.upi += paid;
         r.discount += Number(x.discount || 0);
       });
       setStaffRows(Object.values(sm).sort((a: any, b: any) => b.revenue - a.revenue));
@@ -298,7 +314,7 @@ const Analytics = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Cash</div><div className="text-xl font-bold text-success">₹{totals.cash.toFixed(2)}</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">UPI</div><div className="text-xl font-bold">₹{totals.upi.toFixed(2)}</div></Card>
-        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — not in totals</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — discount given via override</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
       </div>
 

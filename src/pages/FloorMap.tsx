@@ -937,130 +937,214 @@ const FloorMap = () => {
 
       {/* End session dialog */}
       <Dialog open={!!endingAsset} onOpenChange={(o) => !o && setEndingAsset(null)}>
-        <DialogContent className="glass-card max-h-[90vh] flex flex-col p-0 sm:max-w-md">
-          <DialogHeader className="p-4 pb-2 shrink-0"><DialogTitle>End session — {endingAsset?.name}</DialogTitle></DialogHeader>
-          <div className="space-y-4 overflow-y-auto px-4 pb-4 flex-1">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="p-2 rounded border border-border">
-                <div className="text-xs text-muted-foreground">Game</div>
-                <div className="font-bold">₹{endGame.toFixed(2)}</div>
-              </div>
-              <div className="p-2 rounded border border-border">
-                <div className="text-xs text-muted-foreground">Items</div>
-                <div className="font-bold">₹{endItems.toFixed(2)}</div>
-              </div>
-            </div>
-            {endAdvances > 0 && (
-              <div className="p-2 rounded border border-success/40 bg-success/10 text-sm flex justify-between">
-                <span className="text-success">Advance already paid</span>
-                <span className="font-bold text-success">− ₹{endAdvances.toFixed(2)}</span>
-              </div>
-            )}
-            {chainSessionIds.length > 1 && (
-              <p className="text-[11px] text-accent">Combined bill across {chainSessionIds.length} sessions (transfer chain).</p>
-            )}
+        <DialogContent className="glass-card max-h-[92vh] flex flex-col p-0 sm:max-w-3xl">
+          {endingAsset && endingSession && (() => {
+            const shortId = endingSession.id.replace(/-/g, "").slice(0, 8).toUpperCase();
+            const gross = +(endGame + endItems).toFixed(2);
+            const payable = endAmount;
+            const tile = (icon: any, label: string, sub: string, accent: string, onClick: () => void) => (
+              <button type="button" onClick={onClick}
+                className="rounded-xl border border-border bg-card/40 hover:bg-card/70 hover:border-primary/50 transition-all p-3 flex flex-col items-center justify-center gap-1">
+                <div className={accent}>{icon}</div>
+                <div className="text-sm font-semibold">{label}</div>
+                <div className="text-[10px] text-muted-foreground">{sub}</div>
+              </button>
+            );
+            return (
+              <>
+                {/* Header */}
+                <DialogHeader className="p-4 pb-3 border-b border-border shrink-0">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
+                        <Gamepad2 className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <DialogTitle className="text-lg">{endingAsset.name}</DialogTitle>
+                        <div className="text-[11px] text-muted-foreground font-mono">{shortId}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Duration</div>
+                      <div className="text-2xl font-mono neon-text">{formatElapsed(endingSession.started_at)}</div>
+                    </div>
+                  </div>
+                </DialogHeader>
 
-            <div>
-              <Label className="text-xs">Offer (optional)</Label>
-              <Select value={endOfferId} onValueChange={(v) => {
-                setEndOfferId(v);
-                const off = endOffers.find((o: any) => o.id === v);
-                let total = endGame + endItems;
-                if (off) {
-                  if (off.offer_type === "percentage") total = total - (total * Number(off.value) / 100);
-                  else if (off.offer_type === "fixed") total = Math.max(0, total - Number(off.value));
-                }
-                const final = +Math.max(0, total - endAdvances).toFixed(2);
-                setEndComputed(final);
-                if (!overrideOn) {
-                  setEndAmount(final);
-                  if (payMethod === "cash") setCashAmt(final);
-                  else if (payMethod === "upi") setUpiAmt(final);
-                }
-              }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No offer</SelectItem>
-                  {endOffers.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="overflow-y-auto px-4 py-4 flex-1 space-y-4">
+                  {/* Bill details + Ordered items */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border bg-card/40 p-4">
+                      <div className="flex items-center gap-2 mb-3 text-muted-foreground text-xs uppercase tracking-wider">
+                        <Wallet className="w-3.5 h-3.5" /> Bill Details
+                      </div>
+                      <div className="flex justify-between py-1.5 text-sm">
+                        <span className="font-semibold">Session Cost</span>
+                        <span className="font-mono">₹{endGame.toFixed(2)}</span>
+                      </div>
+                      <div className="h-px bg-border/60 my-1" />
+                      {endAdvances > 0 && (
+                        <div className="flex justify-between py-1.5 text-sm text-success">
+                          <span>Advance paid</span>
+                          <span className="font-mono">− ₹{endAdvances.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between py-1.5 text-sm">
+                        <span className="font-semibold">Original Total</span>
+                        <span className="font-mono">₹{gross.toFixed(2)}</span>
+                      </div>
+                      {chainSessionIds.length > 1 && (
+                        <p className="text-[10px] text-accent mt-2">Combined across {chainSessionIds.length} sessions (transfer).</p>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-border bg-card/40 p-4 flex flex-col">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wider">
+                          <ShoppingBag className="w-3.5 h-3.5" /> Ordered Items
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 px-2"
+                          onClick={() => { const a = endingAsset; setEndingAsset(null); openProducts(a); }}>
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                        </Button>
+                      </div>
+                      {endItemsList.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground py-6">
+                          <ShoppingBag className="w-8 h-8 opacity-30 mb-1" />
+                          <p className="text-xs">No items added</p>
+                        </div>
+                      ) : (
+                        <div className="flex-1 max-h-32 overflow-auto space-y-1 text-xs">
+                          {endItemsList.map((it, i) => (
+                            <div key={i} className="flex justify-between">
+                              <span className="truncate">{it.name} × {it.qty}</span>
+                              <span className="font-mono">₹{(it.qty * it.price).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="border-t border-border/60 mt-2 pt-2 flex justify-between text-sm">
+                        <span className="text-muted-foreground">Items Total</span>
+                        <span className="font-mono">₹{endItems.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="flex items-center justify-between p-2 rounded border border-border">
-              <div>
-                <Label className="text-sm">Override total</Label>
-                <p className="text-[10px] text-muted-foreground">Charge a custom amount</p>
-              </div>
-              <Switch checked={overrideOn} onCheckedChange={(v) => {
-                setOverrideOn(v);
-                if (!v) { setEndAmount(endComputed); setCashAmt(payMethod === "cash" ? endComputed : 0); setUpiAmt(payMethod === "upi" ? endComputed : 0); setOverrideReason(""); }
-              }} />
-            </div>
+                  {/* Action tiles */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {tile(<Clock className="w-5 h-5" />, "Extend", "Session Timer", "text-primary",
+                      () => { const a = endingAsset; setEndingAsset(null); openExtend(a); })}
+                    {tile(<ArrowLeftRight className="w-5 h-5" />, "Transfer", "Move Asset", "text-accent",
+                      () => { const a = endingAsset; setEndingAsset(null); openTransfer(a); })}
+                    {tile(<Users className="w-5 h-5" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
+                      () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); })}
+                    {tile(<Wallet className="w-5 h-5" />, "Advance", "Add Payment", "text-success",
+                      () => { const a = endingAsset; setEndingAsset(null); openAdvance(a); })}
+                  </div>
 
-            <div className="text-center py-5 border border-primary/40 rounded-lg bg-primary/5 shadow-[0_0_24px_hsl(var(--primary)/0.15)]">
-              <div className="text-xs text-muted-foreground uppercase tracking-wider">Total {overrideOn && <span className="text-orange-500">(override)</span>}</div>
-              <Input type="number" step="0.01" value={endAmount}
-                disabled={!overrideOn}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setEndAmount(v);
-                  if (payChosen) {
-                    if (payMethod === "cash") setCashAmt(v);
-                    if (payMethod === "upi") setUpiAmt(v);
-                  }
-                }}
-                className="text-center text-5xl font-extrabold neon-text border-0 bg-transparent disabled:opacity-100 h-auto py-1" />
-              {overrideOn && endAmount !== endComputed && (
-                <div className="text-[10px] text-muted-foreground">Original: ₹{endComputed.toFixed(2)}</div>
-              )}
-            </div>
-            {overrideOn && (
-              <div>
-                <Label className="text-xs">Reason for override (optional)</Label>
-                <Input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} placeholder="e.g. loyal customer discount" />
-              </div>
-            )}
-            <div>
-              <Label>Payment method <span className="text-destructive">*</span></Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {(["cash", "upi", "split"] as const).map((m) => (
-                  <Button key={m} type="button"
-                    variant={payChosen && payMethod === m ? "default" : "outline"}
-                    className={payChosen && payMethod === m ? "bg-gradient-primary text-primary-foreground" : ""}
-                    onClick={() => {
-                      setPayMethod(m); setPayChosen(true);
-                      if (m === "cash") { setCashAmt(endAmount); setUpiAmt(0); }
-                      else if (m === "upi") { setUpiAmt(endAmount); setCashAmt(0); }
-                      else { setCashAmt(0); setUpiAmt(endAmount); }
-                    }}>
-                    {m.toUpperCase()}
-                  </Button>
-                ))}
-              </div>
-              {!payChosen && <p className="text-[10px] text-muted-foreground mt-1">Select a payment method to continue</p>}
-            </div>
-            {payChosen && payMethod === "split" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Cash</Label>
-                  <NumberInput value={cashAmt}
-                    onChange={(v) => { const c = Math.max(0, Math.min(endAmount, v)); setCashAmt(c); setUpiAmt(+(endAmount - c).toFixed(2)); }} />
+                  {/* Offer (optional) */}
+                  {endOffers.length > 0 && (
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <Label className="text-xs flex items-center gap-1"><Tag className="w-3 h-3" /> Offer (optional)</Label>
+                      <Select value={endOfferId} onValueChange={(v) => {
+                        setEndOfferId(v);
+                        const off = endOffers.find((o: any) => o.id === v);
+                        let total = endGame + endItems;
+                        if (off) {
+                          if (off.offer_type === "percentage") total = total - (total * Number(off.value) / 100);
+                          else if (off.offer_type === "fixed") total = Math.max(0, total - Number(off.value));
+                        }
+                        const final = +Math.max(0, total - endAdvances).toFixed(2);
+                        setEndComputed(final);
+                        if (!overrideOn) {
+                          setEndAmount(final);
+                          if (payMethod === "cash") setCashAmt(final);
+                          else if (payMethod === "upi") setUpiAmt(final);
+                        }
+                      }}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No offer</SelectItem>
+                          {endOffers.map((o: any) => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Override + Payment Method */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border bg-card/40 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Bill Override</Label>
+                        <Switch checked={overrideOn} onCheckedChange={(v) => {
+                          setOverrideOn(v);
+                          if (!v) { setEndAmount(endComputed); setCashAmt(payMethod === "cash" ? endComputed : 0); setUpiAmt(payMethod === "upi" ? endComputed : 0); setOverrideReason(""); }
+                        }} />
+                      </div>
+                      <Input type="number" step="0.01" placeholder="₹ New Amount" value={overrideOn ? endAmount : ""}
+                        disabled={!overrideOn}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          setEndAmount(v);
+                          if (payChosen) {
+                            if (payMethod === "cash") setCashAmt(v);
+                            if (payMethod === "upi") setUpiAmt(v);
+                          }
+                        }}
+                        className="bg-background/60" />
+                      {overrideOn && (
+                        <Input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}
+                          placeholder="Reason (optional)" className="bg-background/60 text-xs" />
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-border bg-card/40 p-3 space-y-2">
+                      <Label className="text-sm font-semibold">Payment Method <span className="text-destructive">*</span></Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["cash", "upi", "split"] as const).map((m) => (
+                          <Button key={m} type="button" size="sm"
+                            variant={payChosen && payMethod === m ? "default" : "outline"}
+                            className={payChosen && payMethod === m ? "bg-gradient-primary text-primary-foreground" : ""}
+                            onClick={() => {
+                              setPayMethod(m); setPayChosen(true);
+                              if (m === "cash") { setCashAmt(endAmount); setUpiAmt(0); }
+                              else if (m === "upi") { setUpiAmt(endAmount); setCashAmt(0); }
+                              else { setCashAmt(0); setUpiAmt(endAmount); }
+                            }}>
+                            {m === "cash" ? "Cash" : m === "upi" ? "UPI" : "Split"}
+                          </Button>
+                        ))}
+                      </div>
+                      {payChosen && payMethod === "split" && (
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <NumberInput value={cashAmt} placeholder="Cash"
+                            onChange={(v) => { const c = Math.max(0, Math.min(endAmount, v)); setCashAmt(c); setUpiAmt(+(endAmount - c).toFixed(2)); }} />
+                          <NumberInput value={upiAmt} placeholder="UPI"
+                            onChange={(v) => { const u = Math.max(0, Math.min(endAmount, v)); setUpiAmt(u); setCashAmt(+(endAmount - u).toFixed(2)); }} />
+                          <div className="col-span-2 text-[10px] text-muted-foreground">
+                            Sum: ₹{(cashAmt + upiAmt).toFixed(2)} / ₹{endAmount.toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs">UPI (auto)</Label>
-                  <NumberInput value={upiAmt}
-                    onChange={(v) => { const u = Math.max(0, Math.min(endAmount, v)); setUpiAmt(u); setCashAmt(+(endAmount - u).toFixed(2)); }} />
+
+                {/* Footer */}
+                <div className="border-t border-border p-4 shrink-0 flex flex-wrap items-center justify-between gap-3 bg-card/60">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Total Payable</div>
+                    <div className="text-3xl font-extrabold neon-text">₹{payable.toFixed(2)}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setEndingAsset(null)}>Keep Open</Button>
+                    <Button onClick={confirmEnd} disabled={!payChosen}
+                      className="bg-gradient-primary text-primary-foreground disabled:opacity-50">
+                      Complete Session
+                    </Button>
+                  </div>
                 </div>
-                <div className="col-span-2 text-xs text-muted-foreground">
-                  Sum: ₹{(cashAmt + upiAmt).toFixed(2)} / ₹{endAmount.toFixed(2)}
-                </div>
-              </div>
-            )}
-            <Button onClick={confirmEnd} disabled={!payChosen}
-              className="w-full bg-gradient-primary text-primary-foreground disabled:opacity-50">
-              Confirm & end
-            </Button>
-          </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
       {/* Advance payment dialog */}

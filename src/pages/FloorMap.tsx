@@ -1212,54 +1212,6 @@ const FloorMap = () => {
           </div>
         </DialogContent>
       </Dialog>
-      {/* Active session details / actions popup */}
-      <Dialog open={!!detailsAsset} onOpenChange={(o) => !o && setDetailsAsset(null)}>
-        <DialogContent className="glass-card">
-          <DialogHeader><DialogTitle>{detailsAsset?.name} — Session actions</DialogTitle></DialogHeader>
-          {detailsAsset && (() => {
-            const session = sessions.find((s) => s.asset_id === detailsAsset.id);
-            if (!session) return <p className="text-sm text-muted-foreground">No active session.</p>;
-            const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
-            const remaining = session.planned_minutes ? session.planned_minutes - elapsedMin : null;
-            return (
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="p-2 rounded border border-border">
-                    <div className="text-[10px] text-muted-foreground uppercase">Customer</div>
-                    <div className="font-semibold truncate">{session.customer_name || "Walk-in"}</div>
-                  </div>
-                  <div className="p-2 rounded border border-border">
-                    <div className="text-[10px] text-muted-foreground uppercase">Players</div>
-                    <div className="font-semibold">{session.player_count}</div>
-                  </div>
-                  <div className="p-2 rounded border border-border">
-                    <div className="text-[10px] text-muted-foreground uppercase">Running</div>
-                    <div className="font-mono neon-text">{formatElapsed(session.started_at)}</div>
-                  </div>
-                  <div className="p-2 rounded border border-border">
-                    <div className="text-[10px] text-muted-foreground uppercase">Remaining</div>
-                    <div className={`font-semibold ${remaining !== null && remaining <= 0 ? "text-destructive" : remaining !== null && remaining <= 5 ? "text-orange-500" : ""}`}>
-                      {remaining === null ? "Open" : remaining > 0 ? `${Math.ceil(remaining)}m` : `+${Math.ceil(-remaining)}m over`}
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" onClick={() => openExtend(detailsAsset)}><Clock className="w-4 h-4 mr-1" /> Extend</Button>
-                  <Button variant="outline" onClick={() => openProducts(detailsAsset)}><ShoppingBag className="w-4 h-4 mr-1" /> Add items</Button>
-                  <Button variant="outline" onClick={() => openAdvance(detailsAsset)}><Wallet className="w-4 h-4 mr-1" /> Advance</Button>
-                  <Button variant="outline" onClick={() => openTransfer(detailsAsset)}><ArrowLeftRight className="w-4 h-4 mr-1" /> Transfer</Button>
-                  <Button variant="outline" onClick={() => openChangePlayers(detailsAsset)}><Users className="w-4 h-4 mr-1" /> Change players</Button>
-                  <Button variant="outline" onClick={() => setDetailsAsset(null)}><X className="w-4 h-4 mr-1" /> Close</Button>
-                </div>
-                <Button variant="destructive" className="w-full" onClick={() => beginEnd(detailsAsset)}>
-                  <Square className="w-4 h-4 mr-1" /> End session
-                </Button>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
-
       {/* Change players dialog */}
       <Dialog open={!!cpAsset} onOpenChange={(o) => !o && setCpAsset(null)}>
         <DialogContent className="glass-card">

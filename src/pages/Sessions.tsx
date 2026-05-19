@@ -81,7 +81,18 @@ const Sessions = () => {
                     {adv ? <>₹{adv.amount.toFixed(2)}<div className="text-[10px] text-muted-foreground uppercase">{adv.methods.join("/")}</div></> : "-"}
                   </TableCell>
                   <TableCell className="text-right font-mono">
-                    ₹{Number(r.total_amount || 0).toFixed(2)}
+                    {(() => {
+                      const stored = Number(r.total_amount || 0);
+                      const advAmt = adv ? adv.amount : 0;
+                      const endCash = Number(r.cash_amount || 0) + Number(r.upi_amount || 0);
+                      // Heuristic: if total_amount was stored as the end-only amount
+                      // (older sessions), add the advance to show full bill.
+                      const gross = stored < advAmt + endCash - 0.01 ? +(stored + advAmt).toFixed(2) : stored;
+                      return <>₹{gross.toFixed(2)}</>;
+                    })()}
+                    {adv && (
+                      <div className="text-[10px] text-success">incl. ₹{adv.amount.toFixed(2)} advance</div>
+                    )}
                     {isOverride && (
                       <div className="text-[10px] text-orange-500">
                         Paid ₹{Number(r.override_amount || 0).toFixed(2)} · Diff ₹{Math.max(0, Number(r.total_amount || 0) - Number(r.override_amount || 0)).toFixed(2)}

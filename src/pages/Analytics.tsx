@@ -36,7 +36,7 @@ const Analytics = () => {
   const [byDay, setByDay] = useState<any[]>([]);
   const [assetRows, setAssetRows] = useState<any[]>([]);
   const [productRows, setProductRows] = useState<any[]>([]);
-  const [totals, setTotals] = useState({ gaming: 0, productSale: 0, total: 0, cash: 0, upi: 0, expenses: 0, overrides: 0, overridesCount: 0 });
+  const [totals, setTotals] = useState({ gaming: 0, productSale: 0, total: 0, cash: 0, upi: 0, expenses: 0, overrides: 0, overridesCount: 0, advances: 0, advancesCount: 0 });
   const [expenseCats, setExpenseCats] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
   const [staffRows, setStaffRows] = useState<any[]>([]);
@@ -65,7 +65,7 @@ const Analytics = () => {
     const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
     const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
     const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
-    const advQ = supabase.from("session_advances").select("amount, payment_method, cash_amount, upi_amount, created_at").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
+    const advQ = supabase.from("session_advances").select("session_id, amount, payment_method, cash_amount, upi_amount, created_at").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
 
     Promise.all([sessQ, billsQ, expQ, advQ]).then(async ([s, b, e, adv]) => {
       const sessions = (s.data || []) as any[];
@@ -152,9 +152,20 @@ const Analytics = () => {
       };
       sumPay(sessions, "total_amount");
       sumPay(bills, "total");
-      // Add advance payments to cash/UPI
+      // Add advance payments to cash/UPI.
+      // Skip advances belonging to overridden sessions — their amount is
+      // already baked into override_amount (paid total) and would be
+      // double-counted otherwise.
+      const overriddenSessionIds = new Set(
+        sessions.filter((x) => x.override_amount != null).map((x) => x.id)
+      );
+      let advancesTotal = 0;
+      let advancesCount = 0;
       for (const a of advances) {
+        if (overriddenSessionIds.has(a.session_id)) continue;
         const amt = Number(a.amount || 0);
+        advancesTotal += amt;
+        advancesCount += 1;
         if (a.payment_method === "cash") cash += amt;
         else if (a.payment_method === "upi") upi += amt;
         else { cash += Number(a.cash_amount || 0); upi += Number(a.upi_amount || 0); }
@@ -170,7 +181,7 @@ const Analytics = () => {
       expenses.forEach((x) => { ec[x.category || "general"] = (ec[x.category || "general"] || 0) + Number(x.amount || 0); });
       setExpenseCats(Object.entries(ec).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount));
 
-      setTotals({ gaming, productSale, total, cash, upi, expenses: expensesTotal, overrides, overridesCount });
+      setTotals({ gaming, productSale, total, cash, upi, expenses: expensesTotal, overrides, overridesCount, advances: advancesTotal, advancesCount });
 
       // Staff aggregation (use non-overridden only for revenue; overrides tracked separately)
       const userIds = Array.from(new Set([
@@ -315,6 +326,7 @@ const Analytics = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Cash</div><div className="text-xl font-bold text-success">₹{totals.cash.toFixed(2)}</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">UPI</div><div className="text-xl font-bold">₹{totals.upi.toFixed(2)}</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — discount given via override</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Advance collection</div><div className="text-xl font-bold text-accent">₹{totals.advances.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.advancesCount} advance(s) — included in cash/UPI</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
       </div>
 

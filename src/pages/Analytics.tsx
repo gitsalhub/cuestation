@@ -1,0 +1,454 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import PageHeader from "@/components/PageHeader";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
+import { Download } from "lucide-react";
+
+type Range = "day" | "week" | "month" | "custom";
+
+// Helpers
+const toYmd = (d: Date) => {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const startOfWeek = (d: Date) => {
+  // Week starts Monday
+  const x = new Date(d); x.setHours(0, 0, 0, 0);
+  const day = x.getDay(); // 0=Sun
+  const diff = (day === 0 ? -6 : 1 - day);
+  x.setDate(x.getDate() + diff);
+  return x;
+};
+
+const Analytics = () => {
+  const { cafeId } = useAuth();
+  const [range, setRange] = useState<Range>("day");
+  const today = new Date();
+  const [dayDate, setDayDate] = useState<string>(toYmd(today));
+  const [weekAnchor, setWeekAnchor] = useState<string>(toYmd(today));
+  const [monthAnchor, setMonthAnchor] = useState<string>(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`);
+  const [customFrom, setCustomFrom] = useState<string>(() => new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+  const [customTo, setCustomTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [byDay, setByDay] = useState<any[]>([]);
+  const [assetRows, setAssetRows] = useState<any[]>([]);
+  const [productRows, setProductRows] = useState<any[]>([]);
+  const [totals, setTotals] = useState({ gaming: 0, productSale: 0, total: 0, cash: 0, upi: 0, expenses: 0, overrides: 0, overridesCount: 0 });
+  const [expenseCats, setExpenseCats] = useState<any[]>([]);
+  const [allSessions, setAllSessions] = useState<any[]>([]);
+  const [staffRows, setStaffRows] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!cafeId) return;
+    // Compute since / until based on range
+    let since = new Date(), until = new Date();
+    if (range === "day") {
+      since = new Date(dayDate + "T00:00:00");
+      until = new Date(dayDate + "T23:59:59");
+    } else if (range === "week") {
+      since = startOfWeek(new Date(weekAnchor + "T00:00:00"));
+      until = new Date(since); until.setDate(until.getDate() + 6); until.setHours(23, 59, 59, 999);
+    } else if (range === "month") {
+      const [yy, mm] = monthAnchor.split("-").map(Number);
+      since = new Date(yy, mm - 1, 1, 0, 0, 0);
+      until = new Date(yy, mm, 0, 23, 59, 59);
+    } else {
+      since = new Date(customFrom + "T00:00:00");
+      until = new Date(customTo + "T23:59:59");
+    }
+    const sinceIso = since.toISOString();
+    const untilIso = until.toISOString();
+
+    const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
+    const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
+    const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
+
+    Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
+      const sessions = (s.data || []) as any[];
+      const bills = (b.data || []) as any[];
+      const expenses = (e.data || []) as any[];
+      setAllSessions(sessions);
+
+      const billIds = bills.map((x) => x.id);
+      const { data: bItems } = billIds.length ? await supabase.from("bill_items").select("bill_id, product_name, qty, price").in("bill_id", billIds) : { data: [] as any[] };
+      const sessionIds = sessions.map((x) => x.id).filter(Boolean);
+      const { data: sItems } = sessionIds.length ? await supabase.from("session_items").select("session_id, product_name, qty, price").in("session_id", sessionIds) : { data: [] as any[] };
+
+      // Separate overridden from normal — overrides excluded from revenue/cash/upi totals
+      const normalSessions = sessions.filter((x) => x.override_amount == null);
+      const overrideSessions = sessions.filter((x) => x.override_amount != null);
+      const normalBills = bills.filter((x) => x.override_amount == null);
+      const overrideBills = bills.filter((x) => x.override_amount != null);
+
+      // Daily revenue + expense (use non-overridden totals)
+      const revMap: Record<string, number> = {};
+      const expMap: Record<string, number> = {};
+      normalSessions.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + Number(x.total_amount || 0); });
+      normalBills.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + Number(x.total || 0); });
+      expenses.forEach((x) => { const k = (x.expense_date || "").slice(0, 10); expMap[k] = (expMap[k] || 0) + Number(x.amount || 0); });
+      const allDates = Array.from(new Set([...Object.keys(revMap), ...Object.keys(expMap)])).sort();
+      setByDay(allDates.map((d) => ({ date: d.slice(5), revenue: revMap[d] || 0, expense: expMap[d] || 0 })));
+
+      // Asset stats (from non-overridden sessions)
+      const am: Record<string, { name: string; revenue: number; sessions: number }> = {};
+      normalSessions.forEach((x) => {
+        const name = x.assets?.name || "—";
+        if (!am[name]) am[name] = { name, revenue: 0, sessions: 0 };
+        am[name].revenue += Number(x.game_amount || 0);
+        am[name].sessions += 1;
+      });
+      setAssetRows(Object.values(am).sort((a, b) => b.revenue - a.revenue));
+
+      // Products (count items from non-overridden bills/sessions)
+      const normalBillIds = new Set(normalBills.map((x) => x.id));
+      const normalSessIds = new Set(normalSessions.map((x) => x.id));
+      const pm: Record<string, { name: string; revenue: number; qty: number }> = {};
+      ((bItems || []) as any[]).filter((it: any) => normalBillIds.has(it.bill_id)).forEach((it: any) => {
+        const name = it.product_name || "—";
+        if (!pm[name]) pm[name] = { name, revenue: 0, qty: 0 };
+        pm[name].revenue += Number(it.qty) * Number(it.price);
+        pm[name].qty += Number(it.qty);
+      });
+      ((sItems || []) as any[]).filter((it: any) => normalSessIds.has(it.session_id)).forEach((it: any) => {
+        const name = it.product_name || "—";
+        if (!pm[name]) pm[name] = { name, revenue: 0, qty: 0 };
+        pm[name].revenue += Number(it.qty) * Number(it.price);
+        pm[name].qty += Number(it.qty);
+      });
+      setProductRows(Object.values(pm).sort((a, b) => b.revenue - a.revenue));
+
+      // Totals
+      const gaming = normalSessions.reduce((s, x) => s + Number(x.game_amount || 0), 0);
+      const productSale = normalSessions.reduce((s, x) => s + Number(x.items_amount || 0), 0)
+                       + normalBills.reduce((s, x) => s + Number(x.total || 0), 0);
+      const total = gaming + productSale;
+      const expensesTotal = expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
+
+      let cash = 0, upi = 0;
+      const sumPay = (rows: any[], totalKey: string) => {
+        for (const r of rows) {
+          const t = Number(r[totalKey] || 0);
+          const c = Number(r.cash_amount || 0);
+          const u = Number(r.upi_amount || 0);
+          if (r.payment_method === "split") { cash += c; upi += u; }
+          else if (r.payment_method === "cash") cash += t;
+          else if (r.payment_method === "upi") upi += t;
+          else if (r.payment_method === "transfer") { /* deferred */ }
+          else { cash += c; upi += u; }
+        }
+      };
+      sumPay(normalSessions, "total_amount");
+      sumPay(normalBills, "total");
+
+      // Overrides: sum of override_amount (the overridden final value)
+      const overrides = overrideSessions.reduce((s, x) => s + Number(x.override_amount || 0), 0)
+                      + overrideBills.reduce((s, x) => s + Number(x.override_amount || 0), 0);
+      const overridesCount = overrideSessions.length + overrideBills.length;
+
+      const ec: Record<string, number> = {};
+      expenses.forEach((x) => { ec[x.category || "general"] = (ec[x.category || "general"] || 0) + Number(x.amount || 0); });
+      setExpenseCats(Object.entries(ec).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount));
+
+      setTotals({ gaming, productSale, total, cash, upi, expenses: expensesTotal, overrides, overridesCount });
+
+      // Staff aggregation (use non-overridden only for revenue; overrides tracked separately)
+      const userIds = Array.from(new Set([
+        ...sessions.map((x: any) => x.started_by).filter(Boolean),
+        ...bills.map((x: any) => x.created_by).filter(Boolean),
+      ]));
+      let nameMap: Record<string, string> = {};
+      if (userIds.length) {
+        const { data: profs } = await supabase.from("profiles").select("id, full_name, email").in("id", userIds);
+        (profs || []).forEach((p: any) => { nameMap[p.id] = p.full_name || p.email || "Unknown"; });
+      }
+      const sm: Record<string, any> = {};
+      const ensure = (uid: string) => {
+        if (!sm[uid]) sm[uid] = { id: uid, name: nameMap[uid] || "Unknown", revenue: 0, sessions: 0, bills: 0, override: 0, discount: 0, cash: 0, upi: 0 };
+        return sm[uid];
+      };
+      sessions.forEach((x: any) => {
+        if (!x.started_by) return;
+        const r = ensure(x.started_by);
+        r.sessions += 1;
+        if (x.override_amount != null) {
+          r.override += Number(x.override_amount || 0);
+        } else {
+          r.revenue += Number(x.total_amount || 0);
+          if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
+          else if (x.payment_method === "cash") r.cash += Number(x.total_amount || 0);
+          else if (x.payment_method === "upi") r.upi += Number(x.total_amount || 0);
+        }
+        r.discount += Number(x.discount_amount || 0);
+      });
+      bills.forEach((x: any) => {
+        if (!x.created_by) return;
+        const r = ensure(x.created_by);
+        r.bills += 1;
+        if (x.override_amount != null) {
+          r.override += Number(x.override_amount || 0);
+        } else {
+          r.revenue += Number(x.total || 0);
+          if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
+          else if (x.payment_method === "cash") r.cash += Number(x.total || 0);
+          else if (x.payment_method === "upi") r.upi += Number(x.total || 0);
+        }
+        r.discount += Number(x.discount || 0);
+      });
+      setStaffRows(Object.values(sm).sort((a: any, b: any) => b.revenue - a.revenue));
+    });
+  }, [cafeId, range, dayDate, weekAnchor, monthAnchor, customFrom, customTo]);
+
+  const netProfit = totals.total - totals.expenses;
+
+  const downloadCsv = () => {
+    const headers = ["Date", "Asset", "Customer", "Started", "Ended", "Status", "Game", "Items", "Total", "Override", "Reason", "Cash", "UPI", "Method"];
+    const rows = allSessions.map((s) => [
+      new Date(s.created_at).toLocaleString(), s.assets?.name || "", s.customer_name || "",
+      s.started_at ? new Date(s.started_at).toLocaleString() : "",
+      s.ended_at ? new Date(s.ended_at).toLocaleString() : "", s.status,
+      s.game_amount || 0, s.items_amount || 0, s.total_amount || 0,
+      s.override_amount ?? "", s.override_reason ?? "",
+      s.cash_amount || 0, s.upi_amount || 0, s.payment_method || "",
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `sessions-${range}-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const payPie = [
+    { name: "Cash", value: totals.cash },
+    { name: "UPI", value: totals.upi },
+  ].filter((x) => x.value > 0);
+
+  // Range label
+  const rangeLabel = (() => {
+    if (range === "day") return new Date(dayDate + "T00:00:00").toLocaleDateString();
+    if (range === "week") {
+      const start = startOfWeek(new Date(weekAnchor + "T00:00:00"));
+      const end = new Date(start); end.setDate(end.getDate() + 6);
+      return `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;
+    }
+    if (range === "month") {
+      const [yy, mm] = monthAnchor.split("-").map(Number);
+      return new Date(yy, mm - 1, 1).toLocaleString(undefined, { month: "long", year: "numeric" });
+    }
+    return `${customFrom} → ${customTo}`;
+  })();
+
+  return (
+    <>
+      <PageHeader title="Analytics" description="Performance overview"
+        actions={<Button variant="outline" onClick={downloadCsv}><Download className="w-4 h-4 mr-1" />Export CSV</Button>} />
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <Tabs value={range} onValueChange={(v) => setRange(v as Range)}>
+          <TabsList>
+            <TabsTrigger value="day">Day</TabsTrigger>
+            <TabsTrigger value="week">Week</TabsTrigger>
+            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="custom">Custom</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {range === "day" && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Date</span>
+            <input type="date" value={dayDate} max={toYmd(new Date())} onChange={(e) => setDayDate(e.target.value)}
+              className="bg-card border border-border rounded px-2 py-1" />
+          </div>
+        )}
+        {range === "week" && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Week of</span>
+            <input type="date" value={weekAnchor} max={toYmd(new Date())} onChange={(e) => setWeekAnchor(e.target.value)}
+              className="bg-card border border-border rounded px-2 py-1" />
+          </div>
+        )}
+        {range === "month" && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Month</span>
+            <input type="month" value={monthAnchor} max={`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`} onChange={(e) => setMonthAnchor(e.target.value)}
+              className="bg-card border border-border rounded px-2 py-1" />
+          </div>
+        )}
+        {range === "custom" && (
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">From</span>
+            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+              className="bg-card border border-border rounded px-2 py-1" />
+            <span className="text-muted-foreground">To</span>
+            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+              className="bg-card border border-border rounded px-2 py-1" />
+          </div>
+        )}
+        <div className="text-xs text-muted-foreground ml-auto">{rangeLabel}</div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Total revenue</div><div className="text-2xl font-bold neon-text">₹{totals.total.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Gaming + Product</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Gaming revenue</div><div className="text-2xl font-bold">₹{totals.gaming.toFixed(2)}</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Product sales</div><div className="text-2xl font-bold">₹{totals.productSale.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">In-session + counter</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Net profit</div><div className={`text-2xl font-bold ${netProfit >= 0 ? "text-success" : "text-destructive"}`}>₹{netProfit.toFixed(2)}</div></Card>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Cash</div><div className="text-xl font-bold text-success">₹{totals.cash.toFixed(2)}</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">UPI</div><div className="text-xl font-bold">₹{totals.upi.toFixed(2)}</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — not in totals</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="glass-card p-5 lg:col-span-2">
+          <h3 className="font-semibold mb-4">Revenue vs Expenses</h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={byDay}>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+              <XAxis dataKey="date" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `₹${v}`} />
+              <Tooltip
+                contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--primary) / 0.4)", borderRadius: 8, boxShadow: "0 0 16px hsl(var(--primary) / 0.25)" }}
+                labelStyle={{ color: "hsl(var(--foreground))", fontWeight: 600 }}
+                itemStyle={{ color: "hsl(var(--foreground))" }}
+                formatter={(v: any) => `₹${Number(v).toFixed(2)}`} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="revenue" name="Revenue" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="expense" name="Expense" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+        <Card className="glass-card p-5">
+          <h3 className="font-semibold mb-4">Cash vs UPI</h3>
+          {payPie.length === 0 ? <p className="text-sm text-muted-foreground">No payments yet.</p> : (
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={payPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(e: any) => `${e.name}: ₹${e.value.toFixed(0)}`}>
+                  <Cell fill="hsl(var(--success))" />
+                  <Cell fill="hsl(var(--primary))" />
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--primary) / 0.4)", borderRadius: 8, boxShadow: "0 0 16px hsl(var(--primary) / 0.25)" }}
+                  itemStyle={{ color: "hsl(var(--foreground))" }}
+                  formatter={(v: any) => `₹${Number(v).toFixed(2)}`} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="glass-card p-5">
+          <h3 className="font-semibold mb-4">Assets — top to least</h3>
+          {assetRows.length === 0 ? <p className="text-sm text-muted-foreground">No session data yet.</p> : (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={assetRows}>
+                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `₹${v}`} />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--accent) / 0.1)" }}
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--accent) / 0.4)", borderRadius: 8, boxShadow: "0 0 16px hsl(var(--accent) / 0.25)" }}
+                    itemStyle={{ color: "hsl(var(--foreground))" }}
+                    formatter={(v: any) => `₹${Number(v).toFixed(2)}`} />
+                  <Bar dataKey="revenue" fill="hsl(var(--accent))" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="mt-4 divide-y divide-border">
+                {assetRows.map((r, i) => (
+                  <div key={r.name} className="flex items-center justify-between py-2 text-sm">
+                    <span className="flex items-center gap-2"><span className="text-muted-foreground w-5">#{i + 1}</span>{r.name}</span>
+                    <span className="text-muted-foreground text-xs">{r.sessions} sessions</span>
+                    <span className="font-mono">₹{r.revenue.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
+
+        <Card className="glass-card p-5">
+          <h3 className="font-semibold mb-4">Products — top to least</h3>
+          {productRows.length === 0 ? <p className="text-sm text-muted-foreground">No products sold yet.</p> : (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={productRows}>
+                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `₹${v}`} />
+                  <Tooltip
+                    cursor={{ fill: "hsl(var(--primary) / 0.1)" }}
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--primary) / 0.4)", borderRadius: 8, boxShadow: "0 0 16px hsl(var(--primary) / 0.25)" }}
+                    itemStyle={{ color: "hsl(var(--foreground))" }}
+                    formatter={(v: any) => `₹${Number(v).toFixed(2)}`} />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="mt-4 divide-y divide-border">
+                {productRows.map((r, i) => (
+                  <div key={r.name} className="flex items-center justify-between py-2 text-sm">
+                    <span className="flex items-center gap-2"><span className="text-muted-foreground w-5">#{i + 1}</span>{r.name}</span>
+                    <span className="text-muted-foreground text-xs">{r.qty} sold</span>
+                    <span className="font-mono">₹{r.revenue.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
+
+        <Card className="glass-card p-5">
+          <h3 className="font-semibold mb-4">Expenses breakdown</h3>
+          {expenseCats.length === 0 ? <p className="text-sm text-muted-foreground">No expenses recorded.</p> : (
+            <div className="divide-y divide-border">
+              {expenseCats.map((e) => (
+                <div key={e.category} className="flex justify-between py-2 text-sm">
+                  <span className="capitalize">{e.category}</span>
+                  <span className="font-mono text-destructive">₹{e.amount.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="glass-card p-5">
+          <h3 className="font-semibold mb-4">Staff revenue — top to least</h3>
+          {staffRows.length === 0 ? <p className="text-sm text-muted-foreground">No staff activity in this range.</p> : (
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-xs uppercase text-muted-foreground border-b border-border">
+                  <th className="text-left p-2">#</th><th className="text-left p-2">Staff</th>
+                  <th className="text-right p-2">Sessions</th><th className="text-right p-2">Bills</th>
+                  <th className="text-right p-2">Cash</th><th className="text-right p-2">UPI</th>
+                  <th className="text-right p-2">Override</th><th className="text-right p-2">Discount</th>
+                  <th className="text-right p-2">Revenue</th>
+                </tr></thead>
+                <tbody>
+                  {staffRows.map((r: any, i: number) => (
+                    <tr key={r.id} className="border-b border-border/50">
+                      <td className="p-2 text-muted-foreground">#{i + 1}</td>
+                      <td className="p-2">{r.name}</td>
+                      <td className="p-2 text-right">{r.sessions}</td>
+                      <td className="p-2 text-right">{r.bills}</td>
+                      <td className="p-2 text-right font-mono">₹{r.cash.toFixed(0)}</td>
+                      <td className="p-2 text-right font-mono">₹{r.upi.toFixed(0)}</td>
+                      <td className="p-2 text-right font-mono text-orange-500">₹{r.override.toFixed(0)}</td>
+                      <td className="p-2 text-right font-mono text-success">₹{r.discount.toFixed(0)}</td>
+                      <td className="p-2 text-right font-mono font-bold">₹{r.revenue.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+};
+
+export default Analytics;

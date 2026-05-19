@@ -1,0 +1,198 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ================== GAMING (default) ================== */
+  :root, .theme-gaming {
+    --background: 230 25% 6%;
+    --foreground: 210 40% 98%;
+    --card: 230 22% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 230 25% 8%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 186 100% 50%;
+    --primary-foreground: 230 25% 6%;
+    --primary-glow: 186 100% 65%;
+    --secondary: 230 20% 14%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 230 18% 14%;
+    --muted-foreground: 220 12% 60%;
+    --accent: 320 100% 60%;
+    --accent-foreground: 230 25% 6%;
+    --accent-glow: 320 100% 70%;
+    --success: 142 76% 50%;
+    --success-foreground: 230 25% 6%;
+    --warning: 38 100% 55%;
+    --warning-foreground: 230 25% 6%;
+    --destructive: 0 90% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 230 20% 18%;
+    --input: 230 20% 14%;
+    --ring: 186 100% 50%;
+    --radius: 0.75rem;
+    --gradient-primary: linear-gradient(135deg, hsl(186 100% 50%), hsl(220 100% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(320 100% 60%), hsl(280 100% 65%));
+    --gradient-bg: radial-gradient(ellipse at top, hsl(230 30% 12%), hsl(230 25% 6%));
+    --gradient-card: linear-gradient(135deg, hsl(230 22% 11%), hsl(230 22% 8%));
+    --shadow-neon: 0 0 24px hsl(186 100% 50% / 0.35);
+    --shadow-pink: 0 0 24px hsl(320 100% 60% / 0.35);
+    --shadow-card: 0 8px 32px hsl(230 50% 2% / 0.5);
+    --sidebar-background: 230 28% 7%;
+    --sidebar-foreground: 220 15% 75%;
+    --sidebar-primary: 186 100% 50%;
+    --sidebar-primary-foreground: 230 25% 6%;
+    --sidebar-accent: 230 22% 12%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 230 20% 14%;
+    --sidebar-ring: 186 100% 50%;
+  }
+
+  /* ================== DARK (neutral) ================== */
+  .theme-dark {
+    --background: 222 18% 10%;
+    --foreground: 210 30% 96%;
+    --card: 222 16% 14%;
+    --card-foreground: 210 30% 96%;
+    --popover: 222 18% 12%;
+    --popover-foreground: 210 30% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 217 91% 70%;
+    --secondary: 222 14% 18%;
+    --secondary-foreground: 210 30% 96%;
+    --muted: 222 14% 18%;
+    --muted-foreground: 220 10% 65%;
+    --accent: 250 80% 60%;
+    --accent-foreground: 0 0% 100%;
+    --accent-glow: 250 80% 70%;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 55%;
+    --warning-foreground: 0 0% 0%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 14% 22%;
+    --input: 222 14% 18%;
+    --ring: 217 91% 60%;
+    --radius: 0.5rem;
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(250 80% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(250 80% 60%), hsl(280 70% 60%));
+    --gradient-bg: linear-gradient(180deg, hsl(222 18% 12%), hsl(222 18% 8%));
+    --gradient-card: linear-gradient(135deg, hsl(222 16% 15%), hsl(222 16% 13%));
+    --shadow-neon: 0 4px 12px hsl(0 0% 0% / 0.4);
+    --shadow-pink: 0 4px 12px hsl(0 0% 0% / 0.4);
+    --shadow-card: 0 4px 16px hsl(0 0% 0% / 0.3);
+    --sidebar-background: 222 18% 9%;
+    --sidebar-foreground: 220 12% 75%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 16% 16%;
+    --sidebar-accent-foreground: 210 30% 96%;
+    --sidebar-border: 222 14% 18%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  /* ================== LIGHT ================== */
+  .theme-light {
+    --background: 0 0% 100%;
+    --foreground: 222 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 30% 15%;
+    --primary: 217 91% 50%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 217 91% 60%;
+    --secondary: 220 15% 96%;
+    --secondary-foreground: 222 30% 15%;
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 250 70% 55%;
+    --accent-foreground: 0 0% 100%;
+    --accent-glow: 250 70% 65%;
+    --success: 142 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 50%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 75% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 88%;
+    --input: 220 15% 92%;
+    --ring: 217 91% 50%;
+    --radius: 0.5rem;
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 50%), hsl(250 70% 55%));
+    --gradient-accent: linear-gradient(135deg, hsl(250 70% 55%), hsl(280 60% 55%));
+    --gradient-bg: linear-gradient(180deg, hsl(220 20% 98%), hsl(220 20% 96%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(220 20% 99%));
+    --shadow-neon: 0 2px 8px hsl(217 91% 50% / 0.15);
+    --shadow-pink: 0 2px 8px hsl(250 70% 55% / 0.15);
+    --shadow-card: 0 2px 8px hsl(220 20% 70% / 0.15);
+    --sidebar-background: 220 20% 98%;
+    --sidebar-foreground: 222 25% 30%;
+    --sidebar-primary: 217 91% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 94%;
+    --sidebar-accent-foreground: 222 30% 15%;
+    --sidebar-border: 220 15% 88%;
+    --sidebar-ring: 217 91% 50%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground;
+    background-image: var(--gradient-bg);
+    background-attachment: fixed;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer base {
+  /* Make native date/time picker icons follow theme */
+  input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"] {
+    color-scheme: dark;
+  }
+  .theme-light input[type="date"],
+  .theme-light input[type="datetime-local"],
+  .theme-light input[type="time"],
+  .theme-light input[type="month"] { color-scheme: light; }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(2);
+    opacity: 0.85;
+    cursor: pointer;
+    margin-left: auto;
+  }
+  .theme-light input[type="date"]::-webkit-calendar-picker-indicator,
+  .theme-light input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .theme-light input[type="time"]::-webkit-calendar-picker-indicator,
+  .theme-light input[type="month"]::-webkit-calendar-picker-indicator {
+    filter: none;
+  }
+  /* Hide native number input spin buttons */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"] { -moz-appearance: textfield; }
+}
+
+@layer components {
+  .neon-border {
+    @apply border border-primary/40;
+    box-shadow: var(--shadow-neon);
+  }
+  .neon-text {
+    color: hsl(var(--primary));
+  }
+  .theme-gaming .neon-text {
+    text-shadow: 0 0 12px hsl(var(--primary) / 0.6);
+  }
+  .glass-card {
+    background: var(--gradient-card);
+    @apply border border-border/60 backdrop-blur-sm;
+    box-shadow: var(--shadow-card);
+  }
+}

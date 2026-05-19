@@ -188,9 +188,8 @@ const Analytics = () => {
         const paid = sessPaid(x);
         r.revenue += paid;
         r.override += sessLoss(x);
-        if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
-        else if (x.payment_method === "cash") r.cash += paid;
-        else if (x.payment_method === "upi") r.upi += paid;
+        r.cash += Number(x.cash_amount || 0);
+        r.upi += Number(x.upi_amount || 0);
         r.discount += Number(x.discount_amount || 0);
       });
       bills.forEach((x: any) => {
@@ -200,9 +199,8 @@ const Analytics = () => {
         const paid = billPaid(x);
         r.revenue += paid;
         r.override += billLoss(x);
-        if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
-        else if (x.payment_method === "cash") r.cash += paid;
-        else if (x.payment_method === "upi") r.upi += paid;
+        r.cash += Number(x.cash_amount || 0);
+        r.upi += Number(x.upi_amount || 0);
         r.discount += Number(x.discount || 0);
       });
       setStaffRows(Object.values(sm).sort((a: any, b: any) => b.revenue - a.revenue));

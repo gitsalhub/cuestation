@@ -134,12 +134,27 @@ const Analytics = () => {
       const total = gaming + productSale;
       const expensesTotal = expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
 
-      // Cash / UPI = at-end-of-session collection (cash_amount/upi_amount columns)
-      // + advance payments. Each is recorded with its own payment method, so
-      // simply summing the columns gives the correct split with no double-count
-      // for either overridden or normal sessions.
+      // Cash / UPI = session end collection + advances, capped per session so
+      // older rows where cash_amount/upi_amount already include the advance do
+      // not count the same advance twice.
+      const advBySession = new Map<string, { cash: number; upi: number; total: number }>();
+      for (const a of advances) {
+        const cur = advBySession.get(a.session_id) || { cash: 0, upi: 0, total: 0 };
+        const amt = Number(a.amount || 0);
+        cur.total += amt;
+        if (a.payment_method === "cash") cur.cash += amt;
+        else if (a.payment_method === "upi") cur.upi += amt;
+        else { cur.cash += Number(a.cash_amount || 0); cur.upi += Number(a.upi_amount || 0); }
+        advBySession.set(a.session_id, cur);
+      }
       let cash = 0, upi = 0;
-      for (const r of sessions) { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
+      for (const r of sessions) {
+        const endCash = Number(r.cash_amount || 0), endUpi = Number(r.upi_amount || 0);
+        const advs = advBySession.get(r.id) || { cash: 0, upi: 0, total: 0 };
+        const alreadyIncluded = endCash + endUpi + advs.total > sessPaid(r) + 0.01;
+        cash += endCash + (alreadyIncluded ? 0 : advs.cash);
+        upi += endUpi + (alreadyIncluded ? 0 : advs.upi);
+      }
       for (const r of bills)    { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
       let advancesTotal = 0;
       let advancesCount = 0;
@@ -147,9 +162,6 @@ const Analytics = () => {
         const amt = Number(a.amount || 0);
         advancesTotal += amt;
         advancesCount += 1;
-        if (a.payment_method === "cash") cash += amt;
-        else if (a.payment_method === "upi") upi += amt;
-        else { cash += Number(a.cash_amount || 0); upi += Number(a.upi_amount || 0); }
       }
 
       // Overrides card = total amount given up across overridden rows

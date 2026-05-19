@@ -134,35 +134,16 @@ const Analytics = () => {
       const total = gaming + productSale;
       const expensesTotal = expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
 
-      // Cash / UPI — what was actually collected. For overridden rows, the
-      // cash_amount/upi_amount columns already hold the paid (end-of-session)
-      // split. Advances are tracked separately and added on top.
+      // Cash / UPI = at-end-of-session collection (cash_amount/upi_amount columns)
+      // + advance payments. Each is recorded with its own payment method, so
+      // simply summing the columns gives the correct split with no double-count
+      // for either overridden or normal sessions.
       let cash = 0, upi = 0;
-      const sumPay = (rows: any[], totalKey: string) => {
-        for (const r of rows) {
-          const paid = r.override_amount != null ? Number(r.override_amount) : Number(r[totalKey] || 0);
-          const c = Number(r.cash_amount || 0);
-          const u = Number(r.upi_amount || 0);
-          if (r.payment_method === "split") { cash += c; upi += u; }
-          else if (r.payment_method === "cash") cash += paid;
-          else if (r.payment_method === "upi") upi += paid;
-          else if (r.payment_method === "transfer") { /* deferred */ }
-          else { cash += c; upi += u; }
-        }
-      };
-      sumPay(sessions, "total_amount");
-      sumPay(bills, "total");
-      // Add advance payments to cash/UPI.
-      // Skip advances belonging to overridden sessions — their amount is
-      // already baked into override_amount (paid total) and would be
-      // double-counted otherwise.
-      const overriddenSessionIds = new Set(
-        sessions.filter((x) => x.override_amount != null).map((x) => x.id)
-      );
+      for (const r of sessions) { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
+      for (const r of bills)    { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
       let advancesTotal = 0;
       let advancesCount = 0;
       for (const a of advances) {
-        if (overriddenSessionIds.has(a.session_id)) continue;
         const amt = Number(a.amount || 0);
         advancesTotal += amt;
         advancesCount += 1;
@@ -207,9 +188,8 @@ const Analytics = () => {
         const paid = sessPaid(x);
         r.revenue += paid;
         r.override += sessLoss(x);
-        if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
-        else if (x.payment_method === "cash") r.cash += paid;
-        else if (x.payment_method === "upi") r.upi += paid;
+        r.cash += Number(x.cash_amount || 0);
+        r.upi += Number(x.upi_amount || 0);
         r.discount += Number(x.discount_amount || 0);
       });
       bills.forEach((x: any) => {
@@ -219,9 +199,8 @@ const Analytics = () => {
         const paid = billPaid(x);
         r.revenue += paid;
         r.override += billLoss(x);
-        if (x.payment_method === "split") { r.cash += Number(x.cash_amount || 0); r.upi += Number(x.upi_amount || 0); }
-        else if (x.payment_method === "cash") r.cash += paid;
-        else if (x.payment_method === "upi") r.upi += paid;
+        r.cash += Number(x.cash_amount || 0);
+        r.upi += Number(x.upi_amount || 0);
         r.discount += Number(x.discount || 0);
       });
       setStaffRows(Object.values(sm).sort((a: any, b: any) => b.revenue - a.revenue));

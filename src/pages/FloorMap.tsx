@@ -443,6 +443,12 @@ const FloorMap = () => {
 
   const confirmEnd = async () => {
     if (!endingAsset || !endingSession) return;
+    const grossTotal = +(endGame + endItems).toFixed(2);
+    if (overrideOn) {
+      const totalPaid = +(endAmount + endAdvances).toFixed(2);
+      if (endAmount < 0) return toast.error("Override amount cannot be negative");
+      if (totalPaid > grossTotal + 0.01) return toast.error(`Override (₹${totalPaid.toFixed(2)}) cannot exceed bill ₹${grossTotal.toFixed(2)}`);
+    }
     let cash = 0, upi = 0;
     if (payMethod === "cash") cash = endAmount;
     else if (payMethod === "upi") upi = endAmount;
@@ -455,7 +461,6 @@ const FloorMap = () => {
     //   (= what they pay at end + any advances already paid).
     // cash_amount / upi_amount = what was collected at end-of-session only.
     // Advances are tracked in session_advances and added on top in analytics.
-    const grossTotal = +(endGame + endItems).toFixed(2);
     const effectivePaid = overrideOn ? +(endAmount + endAdvances).toFixed(2) : null;
     const { error: updErr } = await supabase.from("sessions").update({
       ended_at: new Date().toISOString(), status: "completed",

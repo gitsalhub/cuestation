@@ -59,7 +59,12 @@ const Sessions = () => {
                   <TableCell className="text-xs">{r.ended_at ? new Date(r.ended_at).toLocaleString() : "-"}</TableCell>
                   <TableCell><span className="text-xs uppercase">{r.status}</span>{isOverride && <div className="text-[10px]">Override{r.override_reason ? `: ${r.override_reason}` : ""}</div>}</TableCell>
                   <TableCell className="text-xs uppercase">{r.payment_method || "-"}</TableCell>
-                  <TableCell className="text-right font-mono">₹{Number(r.total_amount || 0).toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-mono">
+                    ₹{Number(r.total_amount || 0).toFixed(2)}
+                    {isOverride && (
+                      <div className="text-[10px] text-orange-500">(₹{Number(r.override_amount || 0).toFixed(2)})</div>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}

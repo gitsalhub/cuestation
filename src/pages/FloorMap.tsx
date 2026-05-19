@@ -115,6 +115,7 @@ const FloorMap = () => {
   const [chainSessionIds, setChainSessionIds] = useState<string[]>([]);
   const [chainAssetIds, setChainAssetIds] = useState<string[]>([]);
   const [endAdvances, setEndAdvances] = useState(0);
+  const [endItemsList, setEndItemsList] = useState<{ name: string; qty: number; price: number }[]>([]);
 
   // Details popup (clicking an active tile)
   const [detailsAsset, setDetailsAsset] = useState<Asset | null>(null);
@@ -408,8 +409,9 @@ const FloorMap = () => {
     const { game: currentGame } = priceWithSegments(rate as any, segs, session.player_count || 1, session.started_at, Date.now(), null);
 
     // Pull all items for chain + parent transferred sessions' game/items totals
-    const { data: items } = await supabase.from("session_items").select("qty, price, session_id").in("session_id", chainIds);
+    const { data: items } = await supabase.from("session_items").select("product_name, qty, price, session_id").in("session_id", chainIds);
     const allItemsTotal = (items || []).reduce((s: number, i: any) => s + Number(i.qty) * Number(i.price), 0);
+    setEndItemsList(((items || []) as any[]).map((i) => ({ name: i.product_name, qty: Number(i.qty), price: Number(i.price) })));
 
     let parentsGame = 0;
     if (chainIds.length > 1) {
@@ -696,7 +698,7 @@ const FloorMap = () => {
                   const isOccupied = a.status === "occupied" && !!session;
                   const onTileClick = () => {
                     if (a.status === "available") openStart(a);
-                    else if (isOccupied) setDetailsAsset(a);
+                    else if (isOccupied) beginEnd(a);
                     else toggleLock(a);
                   };
                   return (

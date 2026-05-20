@@ -939,83 +939,83 @@ const FloorMap = () => {
 
       {/* End session dialog */}
       <Dialog open={!!endingAsset} onOpenChange={(o) => !o && setEndingAsset(null)}>
-        <DialogContent className="glass-card max-h-[92vh] flex flex-col p-0 sm:max-w-3xl">
+        <DialogContent className="glass-card max-h-[92vh] flex flex-col p-0 sm:max-w-2xl">
           {endingAsset && endingSession && (() => {
             const shortId = endingSession.id.replace(/-/g, "").slice(0, 8).toUpperCase();
             const gross = +(endGame + endItems).toFixed(2);
             const payable = endAmount;
-            const tile = (icon: any, label: string, sub: string, accent: string, onClick: () => void) => (
-              <button type="button" onClick={onClick}
-                className="rounded-xl border border-border bg-card/40 hover:bg-card/70 hover:border-primary/50 transition-all p-3 flex flex-col items-center justify-center gap-1">
+            const tile = (icon: any, label: string, sub: string, accent: string, onClick: () => void, disabled = false) => (
+              <button type="button" onClick={onClick} disabled={disabled}
+                className="rounded-lg border border-border bg-card/40 hover:bg-card/70 hover:border-primary/50 transition-all p-2 flex flex-col items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-card/40 disabled:hover:border-border">
                 <div className={accent}>{icon}</div>
-                <div className="text-sm font-semibold">{label}</div>
-                <div className="text-[10px] text-muted-foreground">{sub}</div>
+                <div className="text-xs font-semibold">{label}</div>
+                <div className="text-[9px] text-muted-foreground">{sub}</div>
               </button>
             );
             return (
               <>
                 {/* Header */}
-                <DialogHeader className="p-4 pb-3 border-b border-border shrink-0">
+                <DialogHeader className="p-3 pb-2 border-b border-border shrink-0">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/15 flex items-center justify-center">
-                        <Gamepad2 className="w-5 h-5 text-primary" />
+                      <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                        <Gamepad2 className="w-4 h-4 text-primary" />
                       </div>
                       <div>
-                        <DialogTitle className="text-lg">{endingAsset.name}</DialogTitle>
-                        <div className="text-[11px] text-muted-foreground font-mono">{shortId}</div>
+                        <DialogTitle className="text-base">{endingAsset.name}</DialogTitle>
+                        <div className="text-[10px] text-muted-foreground font-mono">{shortId}</div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Duration</div>
-                      <div className="text-2xl font-mono neon-text">{formatElapsed(endingSession.started_at)}</div>
+                      <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Duration</div>
+                      <div className="text-xl font-mono neon-text">{formatElapsed(endingSession.started_at)}</div>
                     </div>
                   </div>
                 </DialogHeader>
 
-                <div className="overflow-y-auto px-4 py-4 flex-1 space-y-4">
+                <div className="overflow-y-auto px-3 py-3 flex-1 space-y-3">
                   {/* Bill details + Ordered items */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-border bg-card/40 p-4">
-                      <div className="flex items-center gap-2 mb-3 text-muted-foreground text-xs uppercase tracking-wider">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <div className="flex items-center gap-2 mb-2 text-muted-foreground text-[11px] uppercase tracking-wider">
                         <Wallet className="w-3.5 h-3.5" /> Bill Details
                       </div>
-                      <div className="flex justify-between py-1.5 text-sm">
+                      <div className="flex justify-between py-1 text-sm">
                         <span className="font-semibold">Session Cost</span>
                         <span className="font-mono">₹{endGame.toFixed(2)}</span>
                       </div>
                       <div className="h-px bg-border/60 my-1" />
                       {endAdvances > 0 && (
-                        <div className="flex justify-between py-1.5 text-sm text-success">
+                        <div className="flex justify-between py-1 text-sm text-success">
                           <span>Advance paid</span>
                           <span className="font-mono">− ₹{endAdvances.toFixed(2)}</span>
                         </div>
                       )}
-                      <div className="flex justify-between py-1.5 text-sm">
+                      <div className="flex justify-between py-1 text-sm">
                         <span className="font-semibold">Original Total</span>
                         <span className="font-mono">₹{gross.toFixed(2)}</span>
                       </div>
                       {chainSessionIds.length > 1 && (
-                        <p className="text-[10px] text-accent mt-2">Combined across {chainSessionIds.length} sessions (transfer).</p>
+                        <p className="text-[10px] text-accent mt-1">Combined across {chainSessionIds.length} sessions (transfer).</p>
                       )}
                     </div>
-                    <div className="rounded-xl border border-border bg-card/40 p-4 flex flex-col">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wider">
+                    <div className="rounded-xl border border-border bg-card/40 p-3 flex flex-col">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 text-muted-foreground text-[11px] uppercase tracking-wider">
                           <ShoppingBag className="w-3.5 h-3.5" /> Ordered Items
                         </div>
-                        <Button size="sm" variant="outline" className="h-7 px-2"
+                        <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
                           onClick={() => { const a = endingAsset; setEndingAsset(null); openProducts(a); }}>
-                          <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                          <Plus className="w-3 h-3 mr-1" /> Add
                         </Button>
                       </div>
                       {endItemsList.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground py-6">
-                          <ShoppingBag className="w-8 h-8 opacity-30 mb-1" />
-                          <p className="text-xs">No items added</p>
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground py-2">
+                          <ShoppingBag className="w-6 h-6 opacity-30 mb-1" />
+                          <p className="text-[11px]">No items added</p>
                         </div>
                       ) : (
-                        <div className="flex-1 max-h-32 overflow-auto space-y-1 text-xs">
+                        <div className="flex-1 max-h-24 overflow-auto space-y-1 text-xs">
                           {endItemsList.map((it, i) => (
                             <div key={i} className="flex justify-between">
                               <span className="truncate">{it.name} × {it.qty}</span>
@@ -1024,7 +1024,7 @@ const FloorMap = () => {
                           ))}
                         </div>
                       )}
-                      <div className="border-t border-border/60 mt-2 pt-2 flex justify-between text-sm">
+                      <div className="border-t border-border/60 mt-1 pt-1 flex justify-between text-sm">
                         <span className="text-muted-foreground">Items Total</span>
                         <span className="font-mono">₹{endItems.toFixed(2)}</span>
                       </div>
@@ -1033,13 +1033,13 @@ const FloorMap = () => {
 
                   {/* Action tiles */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {tile(<Clock className="w-5 h-5" />, "Extend", "Session Timer", "text-primary",
+                    {tile(<Clock className="w-4 h-4" />, "Extend", "Session Timer", "text-primary",
                       () => { const a = endingAsset; setEndingAsset(null); openExtend(a); })}
-                    {tile(<ArrowLeftRight className="w-5 h-5" />, "Transfer", "Move Asset", "text-accent",
+                    {tile(<ArrowLeftRight className="w-4 h-4" />, "Transfer", "Move Asset", "text-accent",
                       () => { const a = endingAsset; setEndingAsset(null); openTransfer(a); })}
-                    {hasMultiPlayerRate(endingAsset?.rate_profile_id) && tile(<Users className="w-5 h-5" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
-                      () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); })}
-                    {tile(<Wallet className="w-5 h-5" />, "Advance", "Add Payment", "text-success",
+                    {tile(<Users className="w-4 h-4" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
+                      () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); }, !hasMultiPlayerRate(endingAsset?.rate_profile_id))}
+                    {tile(<Wallet className="w-4 h-4" />, "Advance", "Add Payment", "text-success",
                       () => { const a = endingAsset; setEndingAsset(null); openAdvance(a); })}
                   </div>
 

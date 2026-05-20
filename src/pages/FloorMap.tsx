@@ -68,6 +68,12 @@ const FloorMap = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [rates, setRates] = useState<Rate[]>([]);
+  const hasMultiPlayerRate = (rateId: string | null | undefined) => {
+    const r = rates.find((x) => x.id === rateId);
+    if (!r) return false;
+    const set = new Set((r.slabs || []).map((s) => Number(s.players)));
+    return set.size > 1;
+  };
   const [activeOffers, setActiveOffers] = useState<any[]>([]);
   const [now, setNow] = useState(Date.now());
   const [editMode, setEditMode] = useState(false);
@@ -769,7 +775,7 @@ const FloorMap = () => {
               <Label>Customer name (optional)</Label>
               <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in" />
             </div>
-            {startAsset?.category === "ps5" && (
+            {startAsset?.category === "ps5" && hasMultiPlayerRate(startAsset?.rate_profile_id) && (
               <div>
                 <Label>Number of players</Label>
                 <div className="grid grid-cols-4 gap-2 mt-1">
@@ -1031,7 +1037,7 @@ const FloorMap = () => {
                       () => { const a = endingAsset; setEndingAsset(null); openExtend(a); })}
                     {tile(<ArrowLeftRight className="w-5 h-5" />, "Transfer", "Move Asset", "text-accent",
                       () => { const a = endingAsset; setEndingAsset(null); openTransfer(a); })}
-                    {tile(<Users className="w-5 h-5" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
+                    {hasMultiPlayerRate(endingAsset?.rate_profile_id) && tile(<Users className="w-5 h-5" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
                       () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); })}
                     {tile(<Wallet className="w-5 h-5" />, "Advance", "Add Payment", "text-success",
                       () => { const a = endingAsset; setEndingAsset(null); openAdvance(a); })}

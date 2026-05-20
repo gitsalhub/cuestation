@@ -129,7 +129,7 @@ const FloorMap = () => {
   const [advAsset, setAdvAsset] = useState<Asset | null>(null);
   const [advSession, setAdvSession] = useState<Session | null>(null);
   const [advAmount, setAdvAmount] = useState(0);
-  const [advMethod, setAdvMethod] = useState<"cash" | "upi" | "split">("cash");
+  const [advMethod, setAdvMethod] = useState<"cash" | "upi">("cash");
   const [advCash, setAdvCash] = useState(0);
   const [advUpi, setAdvUpi] = useState(0);
   const [advExisting, setAdvExisting] = useState<any[]>([]);
@@ -258,12 +258,8 @@ const FloorMap = () => {
   };
   const confirmAdvance = async () => {
     if (!advSession || !cafeId || advAmount <= 0) return toast.error("Enter an amount");
-    let cash = 0, upi = 0;
-    if (advMethod === "cash") cash = advAmount;
-    else if (advMethod === "upi") upi = advAmount;
-    else { cash = advCash; upi = advUpi;
-      if (Math.abs(cash + upi - advAmount) > 0.01) return toast.error("Cash + UPI must equal amount");
-    }
+    const cash = advMethod === "cash" ? advAmount : 0;
+    const upi = advMethod === "upi" ? advAmount : 0;
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("session_advances").insert({
       cafe_id: cafeId, session_id: advSession.id, amount: advAmount,
@@ -1180,31 +1176,18 @@ const FloorMap = () => {
             </div>
             <div>
               <Label>Payment method</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {(["cash", "upi", "split"] as const).map((m) => (
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {(["cash", "upi"] as const).map((m) => (
                   <Button key={m} type="button" variant={advMethod === m ? "default" : "outline"}
                     className={advMethod === m ? "bg-gradient-primary text-primary-foreground" : ""}
                     onClick={() => {
                       setAdvMethod(m);
                       if (m === "cash") { setAdvCash(advAmount); setAdvUpi(0); }
-                      else if (m === "upi") { setAdvUpi(advAmount); setAdvCash(0); }
-                      else { setAdvCash(advAmount); setAdvUpi(0); }
+                      else { setAdvUpi(advAmount); setAdvCash(0); }
                     }}>{m.toUpperCase()}</Button>
                 ))}
               </div>
             </div>
-            {advMethod === "split" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs">Cash</Label>
-                  <Input type="number" step="0.01" min={0} value={advCash}
-                    onChange={(e) => { const v = Math.max(0, Math.min(advAmount, Number(e.target.value) || 0)); setAdvCash(v); setAdvUpi(+(advAmount - v).toFixed(2)); }} />
-                </div>
-                <div><Label className="text-xs">UPI</Label>
-                  <Input type="number" step="0.01" min={0} value={advUpi}
-                    onChange={(e) => { const v = Math.max(0, Math.min(advAmount, Number(e.target.value) || 0)); setAdvUpi(v); setAdvCash(+(advAmount - v).toFixed(2)); }} />
-                </div>
-              </div>
-            )}
             <Button onClick={confirmAdvance} className="w-full bg-gradient-primary text-primary-foreground">
               Record advance
             </Button>

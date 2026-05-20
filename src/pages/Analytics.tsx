@@ -151,16 +151,21 @@ const Analytics = () => {
       for (const r of sessions) {
         const endCash = Number(r.cash_amount || 0), endUpi = Number(r.upi_amount || 0);
         const advs = advBySession.get(r.id) || { cash: 0, upi: 0, total: 0 };
+        // Advances only count toward cash/UPI revenue once the session has ended.
+        const ended = r.status === "completed";
         const alreadyIncluded = endCash + endUpi + advs.total > sessPaid(r) + 0.01;
-        cash += endCash + (alreadyIncluded ? 0 : advs.cash);
-        upi += endUpi + (alreadyIncluded ? 0 : advs.upi);
+        const includeAdv = ended && !alreadyIncluded;
+        cash += endCash + (includeAdv ? advs.cash : 0);
+        upi += endUpi + (includeAdv ? advs.upi : 0);
       }
       for (const r of bills)    { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
+      // Advance collection card: only count advances whose session has ended in range.
+      const endedSessIds = new Set(sessions.filter((x) => x.status === "completed").map((x) => x.id));
       let advancesTotal = 0;
       let advancesCount = 0;
       for (const a of advances) {
-        const amt = Number(a.amount || 0);
-        advancesTotal += amt;
+        if (!endedSessIds.has(a.session_id)) continue;
+        advancesTotal += Number(a.amount || 0);
         advancesCount += 1;
       }
 

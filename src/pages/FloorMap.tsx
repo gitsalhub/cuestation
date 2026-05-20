@@ -129,7 +129,7 @@ const FloorMap = () => {
   const [advAsset, setAdvAsset] = useState<Asset | null>(null);
   const [advSession, setAdvSession] = useState<Session | null>(null);
   const [advAmount, setAdvAmount] = useState(0);
-  const [advMethod, setAdvMethod] = useState<"cash" | "upi" | "split">("cash");
+  const [advMethod, setAdvMethod] = useState<"cash" | "upi">("cash");
   const [advCash, setAdvCash] = useState(0);
   const [advUpi, setAdvUpi] = useState(0);
   const [advExisting, setAdvExisting] = useState<any[]>([]);
@@ -258,12 +258,8 @@ const FloorMap = () => {
   };
   const confirmAdvance = async () => {
     if (!advSession || !cafeId || advAmount <= 0) return toast.error("Enter an amount");
-    let cash = 0, upi = 0;
-    if (advMethod === "cash") cash = advAmount;
-    else if (advMethod === "upi") upi = advAmount;
-    else { cash = advCash; upi = advUpi;
-      if (Math.abs(cash + upi - advAmount) > 0.01) return toast.error("Cash + UPI must equal amount");
-    }
+    const cash = advMethod === "cash" ? advAmount : 0;
+    const upi = advMethod === "upi" ? advAmount : 0;
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("session_advances").insert({
       cafe_id: cafeId, session_id: advSession.id, amount: advAmount,

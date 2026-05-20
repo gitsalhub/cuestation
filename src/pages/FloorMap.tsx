@@ -1176,31 +1176,18 @@ const FloorMap = () => {
             </div>
             <div>
               <Label>Payment method</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
-                {(["cash", "upi", "split"] as const).map((m) => (
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {(["cash", "upi"] as const).map((m) => (
                   <Button key={m} type="button" variant={advMethod === m ? "default" : "outline"}
                     className={advMethod === m ? "bg-gradient-primary text-primary-foreground" : ""}
                     onClick={() => {
                       setAdvMethod(m);
                       if (m === "cash") { setAdvCash(advAmount); setAdvUpi(0); }
-                      else if (m === "upi") { setAdvUpi(advAmount); setAdvCash(0); }
-                      else { setAdvCash(advAmount); setAdvUpi(0); }
+                      else { setAdvUpi(advAmount); setAdvCash(0); }
                     }}>{m.toUpperCase()}</Button>
                 ))}
               </div>
             </div>
-            {advMethod === "split" && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-xs">Cash</Label>
-                  <Input type="number" step="0.01" min={0} value={advCash}
-                    onChange={(e) => { const v = Math.max(0, Math.min(advAmount, Number(e.target.value) || 0)); setAdvCash(v); setAdvUpi(+(advAmount - v).toFixed(2)); }} />
-                </div>
-                <div><Label className="text-xs">UPI</Label>
-                  <Input type="number" step="0.01" min={0} value={advUpi}
-                    onChange={(e) => { const v = Math.max(0, Math.min(advAmount, Number(e.target.value) || 0)); setAdvUpi(v); setAdvCash(+(advAmount - v).toFixed(2)); }} />
-                </div>
-              </div>
-            )}
             <Button onClick={confirmAdvance} className="w-full bg-gradient-primary text-primary-foreground">
               Record advance
             </Button>

@@ -944,12 +944,12 @@ const FloorMap = () => {
             const shortId = endingSession.id.replace(/-/g, "").slice(0, 8).toUpperCase();
             const gross = +(endGame + endItems).toFixed(2);
             const payable = endAmount;
-            const tile = (icon: any, label: string, sub: string, accent: string, onClick: () => void) => (
-              <button type="button" onClick={onClick}
-                className="rounded-xl border border-border bg-card/40 hover:bg-card/70 hover:border-primary/50 transition-all p-3 flex flex-col items-center justify-center gap-1">
+            const tile = (icon: any, label: string, sub: string, accent: string, onClick: () => void, disabled = false) => (
+              <button type="button" onClick={onClick} disabled={disabled}
+                className="rounded-lg border border-border bg-card/40 hover:bg-card/70 hover:border-primary/50 transition-all p-2 flex flex-col items-center justify-center gap-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-card/40 disabled:hover:border-border">
                 <div className={accent}>{icon}</div>
-                <div className="text-sm font-semibold">{label}</div>
-                <div className="text-[10px] text-muted-foreground">{sub}</div>
+                <div className="text-xs font-semibold">{label}</div>
+                <div className="text-[9px] text-muted-foreground">{sub}</div>
               </button>
             );
             return (
@@ -1037,8 +1037,8 @@ const FloorMap = () => {
                       () => { const a = endingAsset; setEndingAsset(null); openExtend(a); })}
                     {tile(<ArrowLeftRight className="w-5 h-5" />, "Transfer", "Move Asset", "text-accent",
                       () => { const a = endingAsset; setEndingAsset(null); openTransfer(a); })}
-                    {hasMultiPlayerRate(endingAsset?.rate_profile_id) && tile(<Users className="w-5 h-5" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
-                      () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); })}
+                    {tile(<Users className="w-4 h-4" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
+                      () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); }, !hasMultiPlayerRate(endingAsset?.rate_profile_id))}
                     {tile(<Wallet className="w-5 h-5" />, "Advance", "Add Payment", "text-success",
                       () => { const a = endingAsset; setEndingAsset(null); openAdvance(a); })}
                   </div>

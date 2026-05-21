@@ -202,9 +202,17 @@ const FloorMap = () => {
     if (error) return toast.error(error.message);
     await supabase.from("assets").update({ status: "occupied" }).eq("id", startAsset.id);
     // Smart switch ON (best-effort)
-    if (startAsset.tuya_device_id) {
-      const r = await applyTuyaForAsset(startAsset as any, true, globalTuyaUrl, "session_start");
-      if (!r.ok) toast.warning(`Smart switch ON failed: ${r.error}`);
+    {
+      const { data: fresh } = await supabase.from("assets")
+        .select("id, cafe_id, name, tuya_device_id, tuya_server_url")
+        .eq("id", startAsset.id).maybeSingle();
+      console.log("[tuya] session_start", fresh, "globalUrl:", globalTuyaUrl);
+      if (fresh?.tuya_device_id) {
+        const r = await applyTuyaForAsset(fresh as any, true, globalTuyaUrl, "session_start");
+        if (!r.ok) toast.warning(`Smart switch ON failed: ${r.error}`);
+      } else {
+        toast.info("No smart switch linked to this asset");
+      }
     }
     toast.success("Session started");
     setStartAsset(null); load();

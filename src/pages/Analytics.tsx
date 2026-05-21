@@ -62,16 +62,21 @@ const Analytics = () => {
     const sinceIso = since.toISOString();
     const untilIso = until.toISOString();
 
-    const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
+    // Attribute sessions to the day they were CLOSED (ended_at), per business rule.
+    // Only completed sessions contribute to revenue.
+    const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).eq("status", "completed").gte("ended_at", sinceIso).lte("ended_at", untilIso);
     const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
     const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
-    const advQ = supabase.from("session_advances").select("session_id, amount, payment_method, cash_amount, upi_amount, created_at").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
-
-    Promise.all([sessQ, billsQ, expQ, advQ]).then(async ([s, b, e, adv]) => {
+    Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
       const sessions = (s.data || []) as any[];
       const bills = (b.data || []) as any[];
       const expenses = (e.data || []) as any[];
-      const advances = (adv.data || []) as any[];
+      // Advances follow their parent session's close date — fetch by session id.
+      const sessIdsForAdv = sessions.map((x) => x.id);
+      const { data: advData } = sessIdsForAdv.length
+        ? await supabase.from("session_advances").select("session_id, amount, payment_method, cash_amount, upi_amount").in("session_id", sessIdsForAdv)
+        : { data: [] as any[] };
+      const advances = (advData || []) as any[];
       setAllSessions(sessions);
 
       const billIds = bills.map((x) => x.id);
@@ -92,7 +97,7 @@ const Analytics = () => {
       // Daily revenue + expense (effective paid)
       const revMap: Record<string, number> = {};
       const expMap: Record<string, number> = {};
-      sessions.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + sessPaid(x); });
+      sessions.forEach((x) => { const k = new Date(x.ended_at || x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + sessPaid(x); });
       bills.forEach((x) => { const k = new Date(x.created_at).toISOString().slice(0, 10); revMap[k] = (revMap[k] || 0) + billPaid(x); });
       expenses.forEach((x) => { const k = (x.expense_date || "").slice(0, 10); expMap[k] = (expMap[k] || 0) + Number(x.amount || 0); });
       const allDates = Array.from(new Set([...Object.keys(revMap), ...Object.keys(expMap)])).sort();
@@ -160,7 +165,7 @@ const Analytics = () => {
       }
       for (const r of bills)    { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
       // Advance collection card: only count advances whose session has ended in range.
-      const endedSessIds = new Set(sessions.filter((x) => x.status === "completed").map((x) => x.id));
+      const endedSessIds = new Set(sessions.map((x) => x.id));
       let advancesTotal = 0;
       let advancesCount = 0;
       for (const a of advances) {

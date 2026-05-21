@@ -67,13 +67,16 @@ const Analytics = () => {
     const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).eq("status", "completed").gte("ended_at", sinceIso).lte("ended_at", untilIso);
     const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
     const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
-    const advQ = supabase.from("session_advances").select("session_id, amount, payment_method, cash_amount, upi_amount, created_at").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
-
-    Promise.all([sessQ, billsQ, expQ, advQ]).then(async ([s, b, e, adv]) => {
+    Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
       const sessions = (s.data || []) as any[];
       const bills = (b.data || []) as any[];
       const expenses = (e.data || []) as any[];
-      const advances = (adv.data || []) as any[];
+      // Advances follow their parent session's close date — fetch by session id.
+      const sessIdsForAdv = sessions.map((x) => x.id);
+      const { data: advData } = sessIdsForAdv.length
+        ? await supabase.from("session_advances").select("session_id, amount, payment_method, cash_amount, upi_amount").in("session_id", sessIdsForAdv)
+        : { data: [] as any[] };
+      const advances = (advData || []) as any[];
       setAllSessions(sessions);
 
       const billIds = bills.map((x) => x.id);

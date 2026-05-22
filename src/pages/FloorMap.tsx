@@ -204,7 +204,7 @@ const FloorMap = () => {
     // Smart switch ON (best-effort)
     {
       const { data: fresh } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_server_url")
+        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", startAsset.id).maybeSingle();
       console.log("[tuya] session_start", fresh, "globalUrl:", globalTuyaUrl);
       if (fresh?.tuya_device_id) {
@@ -497,7 +497,7 @@ const FloorMap = () => {
     // Smart switch OFF for every asset in the chain (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_server_url")
+        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
         .in("id", chainAssetIds);
       console.log("[tuya] session_end chain", freshAssets, "globalUrl:", globalTuyaUrl);
       for (const a of (freshAssets || []) as any[]) {

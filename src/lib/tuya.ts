@@ -6,7 +6,7 @@
 //
 // Server endpoint (server2.js):
 //   POST {baseUrl}/device/control
-//   Body: { deviceId: string, code: "switch_1", value: boolean }
+//   Body: { deviceId: string, deviceName?: string, code: "switch_1", value: boolean }
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,6 +14,7 @@ export type TuyaState = "on" | "off" | "error" | "unknown" | null;
 
 export interface TuyaTarget {
   deviceId?: string | null;
+  deviceName?: string | null;
   serverUrl?: string | null; // per-asset override
 }
 
@@ -37,6 +38,7 @@ export async function tuyaSet(
   const url = `${base}/device/control`;
   const body = JSON.stringify({
     deviceId: target.deviceId,
+    deviceName: target.deviceName || target.deviceId,
     code: SWITCH_CODE,
     value: on,
   });

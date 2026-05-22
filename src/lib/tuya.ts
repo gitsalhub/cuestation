@@ -6,7 +6,7 @@
 //
 // Server endpoint (server2.js):
 //   POST {baseUrl}/device/control
-//   Body: { deviceId: string, code: "switch_1", value: boolean }
+//   Body: { deviceId: string, deviceName?: string, code: "switch_1", value: boolean }
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,6 +14,7 @@ export type TuyaState = "on" | "off" | "error" | "unknown" | null;
 
 export interface TuyaTarget {
   deviceId?: string | null;
+  deviceName?: string | null;
   serverUrl?: string | null; // per-asset override
 }
 
@@ -37,6 +38,7 @@ export async function tuyaSet(
   const url = `${base}/device/control`;
   const body = JSON.stringify({
     deviceId: target.deviceId,
+    deviceName: target.deviceName || target.deviceId,
     code: SWITCH_CODE,
     value: on,
   });
@@ -93,14 +95,14 @@ export async function tuyaStatus(
 
 // Persist last-known state on the asset row + log errors.
 export async function applyTuyaForAsset(
-  asset: { id: string; cafe_id: string; tuya_device_id?: string | null; tuya_server_url?: string | null; name?: string },
+  asset: { id: string; cafe_id: string; tuya_device_id?: string | null; tuya_device_name?: string | null; tuya_server_url?: string | null; name?: string },
   on: boolean,
   globalBase?: string | null,
   context?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (!asset.tuya_device_id) return { ok: false, error: "no-device" };
   const result = await tuyaSet(
-    { deviceId: asset.tuya_device_id, serverUrl: asset.tuya_server_url },
+    { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name || asset.name, serverUrl: asset.tuya_server_url },
     on,
     globalBase,
   );
@@ -115,6 +117,7 @@ export async function applyTuyaForAsset(
         asset_id: asset.id,
         asset_name: asset.name,
         device_id: asset.tuya_device_id,
+        device_name: asset.tuya_device_name,
         action: on ? "on" : "off",
         error: result.error,
         context: context ?? null,

@@ -127,12 +127,12 @@ const Assets = () => {
     if (!asset.tuya_device_id) return toast.error("Asset not linked");
     setBusyId(asset.id);
     const r = await tuyaSet(
-      { deviceId: asset.tuya_device_id, serverUrl: asset.tuya_server_url },
+      { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name || asset.name, serverUrl: asset.tuya_server_url },
       true, savedGlobal,
     );
     if (r.ok) {
       await new Promise((res) => setTimeout(res, 800));
-      await tuyaSet({ deviceId: asset.tuya_device_id, serverUrl: asset.tuya_server_url }, false, savedGlobal);
+      await tuyaSet({ deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name || asset.name, serverUrl: asset.tuya_server_url }, false, savedGlobal);
       toast.success("Device responded — test OK");
     } else {
       toast.error(`Test failed: ${r.error}`);

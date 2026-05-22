@@ -1,15 +1,12 @@
 // Tuya smart-switch helper.
-// All calls go from the browser to the LOCAL Node Tuya server (server1.js)
-// running on the same cafe PC. We never send Tuya secrets from this app —
-// secrets live on the local server. We only send the device id.
+// All calls go from the browser to the LOCAL Node Tuya server (server2.js)
+// running on the same cafe PC. Secrets live on the local server. We only
+// send the device id of the asset being controlled, so multiple assets
+// each with their own Tuya device can be controlled independently.
 //
-// Compatible server endpoints (see updated server1.js snippet):
-//   GET  {baseUrl}/on?deviceId=xxx
-//   GET  {baseUrl}/off?deviceId=xxx
-//   GET  {baseUrl}/status?deviceId=xxx   (optional, returns { on: boolean })
-//
-// Backwards compatible: if no deviceId param is passed, server falls back
-// to the hardcoded one.
+// Server endpoint (server2.js):
+//   POST {baseUrl}/device/control
+//   Body: { deviceId: string, code: "switch_1", value: boolean }
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -28,15 +25,7 @@ const normalizeBase = (url?: string | null) =>
 const resolveBase = (target: TuyaTarget, globalBase?: string | null) =>
   normalizeBase(target.serverUrl || globalBase);
 
-async function call(path: string): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-  try {
-    return await fetch(path, { method: "GET", signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
+const SWITCH_CODE = "switch_1";
 
 export async function tuyaSet(
   target: TuyaTarget,
@@ -45,21 +34,45 @@ export async function tuyaSet(
 ): Promise<{ ok: boolean; error?: string }> {
   const base = resolveBase(target, globalBase);
   if (!base || !target.deviceId) return { ok: false, error: "Not linked" };
-  const url = `${base}/${on ? "on" : "off"}?deviceId=${encodeURIComponent(target.deviceId)}`;
-  // Try a normal CORS request first so we can read status.
-  try {
-    const res = await call(url);
-    if (res.ok) return { ok: true };
-  } catch {
-    // fall through to no-cors fallback
-  }
-  // Fallback: fire-and-forget no-cors. The browser returns an opaque response
-  // (status 0) but the request still reaches the local Tuya server. This is
-  // what makes ON/OFF work even when CORS headers are missing on server1.js.
+  const url = `${base}/device/control`;
+  const body = JSON.stringify({
+    deviceId: target.deviceId,
+    code: SWITCH_CODE,
+    value: on,
+  });
+  // Try normal CORS POST so we can read the response.
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    await fetch(url, { method: "GET", mode: "no-cors", signal: ctrl.signal });
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && data.success === false) {
+        return { ok: false, error: data.message || "Device error" };
+      }
+      return { ok: true };
+    }
+  } catch {
+    // fall through to no-cors fallback
+  }
+  // Fallback: fire-and-forget no-cors POST. Opaque response (status 0) but
+  // the request still reaches the local Tuya server even without CORS headers.
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+    await fetch(url, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body,
+      signal: ctrl.signal,
+    });
     clearTimeout(timer);
     return { ok: true };
   } catch (e: any) {
@@ -71,17 +84,11 @@ export async function tuyaStatus(
   target: TuyaTarget,
   globalBase?: string | null,
 ): Promise<TuyaState> {
+  // server2.js does not expose a status endpoint — state is tracked locally
+  // on the asset row after each ON/OFF command.
   const base = resolveBase(target, globalBase);
   if (!base || !target.deviceId) return null;
-  try {
-    const res = await call(`${base}/status?deviceId=${encodeURIComponent(target.deviceId)}`);
-    if (!res.ok) return "error";
-    const data = await res.json().catch(() => null);
-    if (data && typeof data.on === "boolean") return data.on ? "on" : "off";
-    return "unknown";
-  } catch {
-    return "error";
-  }
+  return "unknown";
 }
 
 // Persist last-known state on the asset row + log errors.

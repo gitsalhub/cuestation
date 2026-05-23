@@ -6,7 +6,10 @@
 //
 // Server endpoint (server2.js):
 //   POST {baseUrl}/device/control
-//   Body: { deviceId: string, deviceName?: string, code: "switch_1", value: boolean }
+//   Body: { deviceId: string, code: string, value: boolean }
+// The Tuya switch "code" (e.g. switch_1, switch_2, switch_led) is stored
+// per-asset in the "Device name" field so each asset can target its own
+// switch independently.
 
 import { supabase } from "@/integrations/supabase/client";
 
@@ -14,7 +17,7 @@ export type TuyaState = "on" | "off" | "error" | "unknown" | null;
 
 export interface TuyaTarget {
   deviceId?: string | null;
-  deviceName?: string | null;
+  deviceName?: string | null; // used as the Tuya "code" (switch_1, switch_led, ...)
   serverUrl?: string | null; // per-asset override
 }
 
@@ -26,8 +29,6 @@ const normalizeBase = (url?: string | null) =>
 const resolveBase = (target: TuyaTarget, globalBase?: string | null) =>
   normalizeBase(target.serverUrl || globalBase);
 
-const SWITCH_CODE = "switch_1";
-
 export async function tuyaSet(
   target: TuyaTarget,
   on: boolean,
@@ -35,11 +36,12 @@ export async function tuyaSet(
 ): Promise<{ ok: boolean; error?: string }> {
   const base = resolveBase(target, globalBase);
   if (!base || !target.deviceId) return { ok: false, error: "Not linked" };
+  const code = (target.deviceName || "").trim();
+  if (!code) return { ok: false, error: "Missing switch code (Device name)" };
   const url = `${base}/device/control`;
   const body = JSON.stringify({
     deviceId: target.deviceId,
-    deviceName: target.deviceName || target.deviceId,
-    code: SWITCH_CODE,
+    code,
     value: on,
   });
   // Try normal CORS POST so we can read the response.

@@ -20,10 +20,12 @@ export function priceForElapsed(
   const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
   if (slabs.length) {
     const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
-    const eligible = sorted.filter((s) => Number(s.minutes) <= elapsedMinutes);
-    if (eligible.length) return Number(eligible[eligible.length - 1].price);
-    // below smallest slab → minimum price (smallest slab)
-    return Number(sorted[0].price);
+    // Slab semantics: "₹price up to X minutes". Find the first slab whose
+    // minutes >= elapsed; that's the price the customer pays in this band.
+    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes));
+    if (band) return Number(band.price);
+    // Beyond the largest slab → keep using the last (highest) slab's price.
+    return Number(sorted[sorted.length - 1].price);
   }
   const hourly = Number(rate.hourly_rate || 0);
   return Math.round(hourly * (elapsedMinutes / 60) * Math.max(1, players));

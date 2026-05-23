@@ -54,10 +54,11 @@ export const computePrice = (rate: Rate | undefined, players: number, elapsedMin
   const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
   if (slabs.length) {
     const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
-    const eligible = sorted.filter((s) => Number(s.minutes) <= elapsedMinutes);
-    if (eligible.length) return Number(eligible[eligible.length - 1].price);
-    // Below smallest slab: charge minimum (smallest slab's price)
-    return Number(sorted[0].price);
+    // "₹price up to X minutes" — pick the first slab whose minutes >= elapsed.
+    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes));
+    if (band) return Number(band.price);
+    // Beyond largest slab → use the highest slab's price.
+    return Number(sorted[sorted.length - 1].price);
   }
   return +(((rate.hourly_rate || 0) * (elapsedMinutes / 60)) * Math.max(1, players)).toFixed(2);
 };

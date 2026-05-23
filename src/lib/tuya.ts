@@ -111,7 +111,7 @@ export async function applyTuyaForAsset(
 ): Promise<{ ok: boolean; error?: string }> {
   if (!asset.tuya_device_id) return { ok: false, error: "no-device" };
   const result = await tuyaSet(
-    { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name || asset.name, serverUrl: asset.tuya_server_url },
+    { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name, serverUrl: asset.tuya_server_url },
     on,
     globalBase,
   );

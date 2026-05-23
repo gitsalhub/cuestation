@@ -54,10 +54,11 @@ export const computePrice = (rate: Rate | undefined, players: number, elapsedMin
   const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
   if (slabs.length) {
     const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
-    const eligible = sorted.filter((s) => Number(s.minutes) <= elapsedMinutes);
-    if (eligible.length) return Number(eligible[eligible.length - 1].price);
-    // Below smallest slab: charge minimum (smallest slab's price)
-    return Number(sorted[0].price);
+    // "₹price up to X minutes" — pick the first slab whose minutes >= elapsed.
+    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes));
+    if (band) return Number(band.price);
+    // Beyond largest slab → use the highest slab's price.
+    return Number(sorted[sorted.length - 1].price);
   }
   return +(((rate.hourly_rate || 0) * (elapsedMinutes / 60)) * Math.max(1, players)).toFixed(2);
 };
@@ -719,24 +720,24 @@ const FloorMap = () => {
                   };
                   return (
                     <button key={a.id} onClick={onTileClick} type="button"
-                      className={`absolute text-left rounded-lg border-2 p-3 transition-all flex flex-col overflow-hidden hover:scale-[1.02] hover:shadow-[0_0_28px_hsl(var(--primary)/0.4)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${tileClass(a)}`}
+                      className={`absolute text-left rounded-lg border-2 p-2 transition-all flex flex-col overflow-hidden hover:scale-[1.02] hover:shadow-[0_0_28px_hsl(var(--primary)/0.4)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${tileClass(a)}`}
                       style={{ left: a.position_x || 0, top: a.position_y || 0, width: a.width || 200, height: a.height || 200 }}>
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-1 shrink-0">
                         <Gamepad2 className="w-5 h-5 text-primary" />
                         <span className="text-[10px] uppercase tracking-widest font-bold">{a.status}</span>
                       </div>
-                      <div className="font-bold text-sm">{a.name}</div>
-                      <div className="text-xs text-muted-foreground capitalize mb-2">{a.category}</div>
+                      <div className="font-bold text-sm truncate shrink-0">{a.name}</div>
+                      <div className="text-xs text-muted-foreground capitalize mb-1 truncate shrink-0">{a.category}</div>
                       {session && (() => {
                         const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
                         const remaining = session.planned_minutes ? session.planned_minutes - elapsedMin : null;
                         return (
-                          <div className="mb-2 p-2 rounded bg-background/50 flex-1">
+                          <div className="mb-1 p-1.5 rounded bg-background/50 flex-1 min-h-0 overflow-hidden">
                             <div className="text-xs text-muted-foreground flex justify-between gap-2">
                               <span className="truncate">{session.customer_name || "Walk-in"}</span>
                               <span className="flex items-center gap-1 shrink-0"><Users className="w-3 h-3" />{session.player_count}</span>
                             </div>
-                            <div className="font-mono text-base neon-text truncate">{formatElapsed(session.started_at)}</div>
+                            <div className="font-mono text-sm neon-text truncate">{formatElapsed(session.started_at)}</div>
                             {remaining !== null && (
                               <div className={`text-[10px] font-semibold ${remaining <= 0 ? "text-destructive" : remaining <= 5 ? "text-orange-500" : "text-muted-foreground"}`}>
                                 {remaining > 0 ? `${Math.ceil(remaining)}m left` : `+${Math.ceil(-remaining)}m over`}
@@ -749,7 +750,7 @@ const FloorMap = () => {
                               const offs = eligibleOffers(a, session);
                               if (!offs.length) return null;
                               return (
-                                <div className="mt-1 flex items-center gap-1 text-[10px] text-success font-semibold animate-pulse">
+                                <div className="mt-0.5 flex items-center gap-1 text-[10px] text-success font-semibold animate-pulse">
                                   <Tag className="w-3 h-3" />
                                   <span className="truncate">{offs[0].name}{offs.length > 1 ? ` +${offs.length - 1}` : ""}</span>
                                 </div>
@@ -759,17 +760,17 @@ const FloorMap = () => {
                         );
                       })()}
                       {a.status === "available" && (
-                        <div className="mt-auto text-[11px] text-success font-semibold flex items-center gap-1">
+                        <div className="mt-auto text-[11px] text-success font-semibold flex items-center gap-1 shrink-0">
                           <Play className="w-3 h-3" /> Click to start
                         </div>
                       )}
                       {a.status === "locked" && (
-                        <div className="mt-auto text-[11px] text-muted-foreground flex items-center gap-1">
+                        <div className="mt-auto text-[11px] text-muted-foreground flex items-center gap-1 shrink-0">
                           <Lock className="w-3 h-3" /> Click to unlock
                         </div>
                       )}
                       {isOccupied && (
-                        <div className="mt-auto text-[10px] text-primary/80 italic">Tap for actions</div>
+                        <div className="mt-auto text-[10px] text-primary/80 italic shrink-0 truncate">Tap for actions</div>
                       )}
                     </button>
                   );

@@ -24,7 +24,12 @@ export interface TuyaTarget {
 const TIMEOUT_MS = 4000;
 
 const normalizeBase = (url?: string | null) =>
-  (url || "").trim().replace(/\/+$/, "");
+  (url || "")
+    .trim()
+    .replace(/\/+$/, "")
+    // Tolerate users pasting the full endpoint URL — strip a trailing
+    // /device/control so we don't end up double-appending it below.
+    .replace(/\/device\/control$/i, "");
 
 const resolveBase = (target: TuyaTarget, globalBase?: string | null) =>
   normalizeBase(target.serverUrl || globalBase);

@@ -44,11 +44,13 @@ export async function tuyaSet(
   const code = (target.deviceName || "").trim();
   if (!code) return { ok: false, error: "Missing switch code (Device name)" };
   const url = `${base}/device/control`;
-  const body = JSON.stringify({
+  const payload = {
     deviceId: target.deviceId,
     code,
     value: on,
-  });
+  };
+  console.log("Sending Tuya Command", payload);
+  const body = JSON.stringify(payload);
   // Try normal CORS POST so we can read the response.
   try {
     const ctrl = new AbortController();
@@ -109,7 +111,7 @@ export async function applyTuyaForAsset(
 ): Promise<{ ok: boolean; error?: string }> {
   if (!asset.tuya_device_id) return { ok: false, error: "no-device" };
   const result = await tuyaSet(
-    { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name || asset.name, serverUrl: asset.tuya_server_url },
+    { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name, serverUrl: asset.tuya_server_url },
     on,
     globalBase,
   );

@@ -482,7 +482,10 @@ export type Database = {
         Row: {
           cafe_id: string
           config: Json | null
+          cooling_amount: number
+          cooling_minutes: number
           created_at: string
+          grace_minutes: number
           hourly_rate: number | null
           id: string
           name: string
@@ -493,7 +496,10 @@ export type Database = {
         Insert: {
           cafe_id: string
           config?: Json | null
+          cooling_amount?: number
+          cooling_minutes?: number
           created_at?: string
+          grace_minutes?: number
           hourly_rate?: number | null
           id?: string
           name: string
@@ -504,7 +510,10 @@ export type Database = {
         Update: {
           cafe_id?: string
           config?: Json | null
+          cooling_amount?: number
+          cooling_minutes?: number
           created_at?: string
+          grace_minutes?: number
           hourly_rate?: number | null
           id?: string
           name?: string

@@ -131,14 +131,24 @@ export function priceWithSegments(
   // where the slab is whichever band the segment's own duration falls into
   // for that player count (grace already applied inside priceForElapsed).
   let game = 0;
-  for (const s of billableSegs) {
-    if (s.minutes <= 0) continue;
-    const slabPrice = priceForElapsed(rate, s.players, s.minutes);
-    const slabMins = pickSlabMinutes(rate, s.players, s.minutes);
-    if (slabMins > 0) {
-      game += (s.minutes / slabMins) * slabPrice;
-    } else {
-      game += slabPrice;
+  const nonEmpty = billableSegs.filter((s) => s.minutes > 0);
+  if (nonEmpty.length <= 1) {
+    // Player count never changed → use NORMAL fixed slab pricing on the
+    // total billable duration. No per-minute proration.
+    const only = nonEmpty[0];
+    if (only) {
+      game = priceForElapsed(rate, only.players, only.minutes);
+    }
+  } else {
+    // Player count changed mid-session → dynamic prorated billing per segment.
+    for (const s of nonEmpty) {
+      const slabPrice = priceForElapsed(rate, s.players, s.minutes);
+      const slabMins = pickSlabMinutes(rate, s.players, s.minutes);
+      if (slabMins > 0) {
+        game += (s.minutes / slabMins) * slabPrice;
+      } else {
+        game += slabPrice;
+      }
     }
   }
 

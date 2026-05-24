@@ -1,6 +1,12 @@
 // Centralized pricing engine
 export type Slab = { minutes: number; players: number; price: number };
-export type RateLike = { hourly_rate?: number | null; slabs?: Slab[] | null };
+export type RateLike = {
+  hourly_rate?: number | null;
+  slabs?: Slab[] | null;
+  grace_minutes?: number | null;
+  cooling_minutes?: number | null;
+  cooling_amount?: number | null;
+};
 export type PlayerSegment = { players: number; started_at: string; ended_at?: string | null };
 export type OfferLike = {
   id?: string;
@@ -10,19 +16,19 @@ export type OfferLike = {
   free_minutes?: number | null;
 };
 
-/** Pick the largest slab whose minutes <= elapsed for the given player count. */
 export function priceForElapsed(
   rate: RateLike | undefined | null,
   players: number,
   elapsedMinutes: number
 ): number {
   if (!rate) return 0;
+  const grace = Math.max(0, Number(rate.grace_minutes || 0));
   const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
   if (slabs.length) {
     const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
-    // Slab semantics: "₹price up to X minutes". Find the first slab whose
-    // minutes >= elapsed; that's the price the customer pays in this band.
-    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes));
+    // Slab semantics: "₹price up to X minutes". Grace globally delays every
+    // slab transition by `grace` minutes (slab end becomes minutes + grace).
+    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes) + grace);
     if (band) return Number(band.price);
     // Beyond the largest slab → keep using the last (highest) slab's price.
     return Number(sorted[sorted.length - 1].price);
@@ -86,6 +92,24 @@ export function priceWithSegments(
   }
 
   const totalMinutes = segs.reduce((s, x) => s + x.minutes, 0);
+
+  // Cooling startup: if the entire session ended within the cooling window,
+  // bill the flat cooling amount regardless of player count / slab.
+  const coolMin = Math.max(0, Number(rate?.cooling_minutes || 0));
+  const coolAmt = Math.max(0, Number(rate?.cooling_amount || 0));
+  if (coolMin > 0 && totalMinutes <= coolMin) {
+    let g = Math.round(coolAmt);
+    let savedC = 0;
+    if (offer?.offer_type === "percentage") {
+      const d = Math.round(g * Number(offer.value) / 100);
+      savedC = d; g = Math.max(0, g - d);
+    } else if (offer?.offer_type === "fixed") {
+      const d = Math.min(Number(offer.value), g);
+      savedC = d; g = Math.max(0, g - d);
+    }
+    return { game: g, totalMinutes, saved: savedC };
+  }
+
   // Apply free-minutes offer by trimming from the END of the last segment (customer benefit at the tail)
   let billableSegs = segs.map((s) => ({ ...s }));
   let saved = 0;
@@ -102,11 +126,21 @@ export function priceWithSegments(
     }
   }
 
+  // Dynamic player-count billing: each segment is priced proportionally as
+  //   (segmentMinutes / slabMinutes) * slabPrice
+  // where the slab is whichever band the segment's own duration falls into
+  // for that player count (grace already applied inside priceForElapsed).
   let game = 0;
   for (const s of billableSegs) {
-    if (s.minutes > 0) game += priceForElapsed(rate, s.players, s.minutes);
+    if (s.minutes <= 0) continue;
+    const slabPrice = priceForElapsed(rate, s.players, s.minutes);
+    const slabMins = pickSlabMinutes(rate, s.players, s.minutes);
+    if (slabMins > 0) {
+      game += (s.minutes / slabMins) * slabPrice;
+    } else {
+      game += slabPrice;
+    }
   }
-  game = Math.round(game);
 
   if (offer?.offer_type === "percentage") {
     const disc = Math.round(game * Number(offer.value) / 100);
@@ -115,5 +149,18 @@ export function priceWithSegments(
     const disc = Math.min(Number(offer.value), game);
     saved = disc; game = Math.max(0, game - disc);
   }
+  // Round final game amount to nearest multiple of 10.
+  game = Math.round(game / 10) * 10;
   return { game, totalMinutes, saved };
+}
+
+/** Return the slab "minutes" bucket (including grace) that this segment falls into. */
+function pickSlabMinutes(rate: RateLike | undefined | null, players: number, elapsedMinutes: number): number {
+  if (!rate) return 0;
+  const grace = Math.max(0, Number(rate.grace_minutes || 0));
+  const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
+  if (!slabs.length) return 60; // hourly fallback
+  const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
+  const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes) + grace);
+  return Number((band || sorted[sorted.length - 1]).minutes);
 }

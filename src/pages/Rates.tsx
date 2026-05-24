@@ -11,9 +11,15 @@ import { Plus, Edit2, Trash2, ChevronDown, ChevronRight, Users } from "lucide-re
 import { toast } from "sonner";
 
 type Slab = { minutes: number; players: number; price: number };
-type Rate = { id: string; name: string; hourly_rate: number; slabs: Slab[] };
+type Rate = {
+  id: string; name: string; hourly_rate: number; slabs: Slab[];
+  cooling_minutes?: number; cooling_amount?: number; grace_minutes?: number;
+};
 
-const empty = { name: "", hourly_rate: 0, slabs: [] as Slab[] };
+const empty = {
+  name: "", hourly_rate: 0, slabs: [] as Slab[],
+  cooling_minutes: 0, cooling_amount: 0, grace_minutes: 0,
+};
 
 const Rates = () => {
   const { cafeId } = useAuth();
@@ -31,7 +37,14 @@ const Rates = () => {
 
   const openNew = () => { setForm(empty); setEditing(null); setOpen(true); };
   const openEdit = (r: Rate) => {
-    setForm({ name: r.name, hourly_rate: Number(r.hourly_rate || 0), slabs: r.slabs || [] });
+    setForm({
+      name: r.name,
+      hourly_rate: Number(r.hourly_rate || 0),
+      slabs: r.slabs || [],
+      cooling_minutes: Number(r.cooling_minutes || 0),
+      cooling_amount: Number(r.cooling_amount || 0),
+      grace_minutes: Number(r.grace_minutes || 0),
+    });
     setEditing(r); setOpen(true);
   };
 
@@ -61,6 +74,9 @@ const Rates = () => {
     const payload: any = {
       cafe_id: cafeId, name: form.name, pricing_type: "hourly",
       hourly_rate: Number(form.hourly_rate || 0),
+      cooling_minutes: Number(form.cooling_minutes || 0),
+      cooling_amount: Number(form.cooling_amount || 0),
+      grace_minutes: Number(form.grace_minutes || 0),
       slabs: form.slabs.map((s) => ({ minutes: Number(s.minutes), players: Number(s.players), price: Number(s.price) })),
     };
     const { error } = editing
@@ -166,6 +182,28 @@ const Rates = () => {
               <Label>Hourly fallback (₹/hr)</Label>
               <Input type="number" step="0.01" value={form.hourly_rate} onChange={(e) => setForm({ ...form, hourly_rate: Number(e.target.value) })} />
               <p className="text-xs text-muted-foreground mt-1">Used only if no slab matches this player count.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 border border-border rounded-lg p-3">
+              <div>
+                <Label>Cooling startup (min)</Label>
+                <Input type="number" value={form.cooling_minutes}
+                  onChange={(e) => setForm({ ...form, cooling_minutes: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label>Cooling amount (₹)</Label>
+                <Input type="number" step="0.01" value={form.cooling_amount}
+                  onChange={(e) => setForm({ ...form, cooling_amount: Number(e.target.value) })} />
+              </div>
+              <div>
+                <Label>Grace time (min)</Label>
+                <Input type="number" value={form.grace_minutes}
+                  onChange={(e) => setForm({ ...form, grace_minutes: Number(e.target.value) })} />
+              </div>
+              <p className="text-xs text-muted-foreground md:col-span-3">
+                If a session ends within the cooling window, the bill is the cooling amount.
+                Grace time globally delays every slab transition (e.g. a 30-min slab with 5-min grace bills until 35 min).
+              </p>
             </div>
 
             <div>

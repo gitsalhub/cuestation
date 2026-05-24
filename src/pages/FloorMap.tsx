@@ -32,7 +32,14 @@ type Session = {
   parent_session_id?: string | null;
   player_segments?: { players: number; started_at: string; ended_at?: string | null }[] | null;
 };
-type Rate = { id: string; hourly_rate: number; slabs: Slab[] };
+type Rate = {
+  id: string;
+  hourly_rate: number;
+  slabs: Slab[];
+  grace_minutes?: number | null;
+  cooling_minutes?: number | null;
+  cooling_amount?: number | null;
+};
 type Product = { id: string; name: string; price: number; stock: number; stock_threshold?: number };
 type SessionItem = { id: string; session_id: string; product_id: string | null; product_name: string; qty: number; price: number };
 
@@ -51,13 +58,13 @@ const EXTEND_OPTIONS = [15, 30, 45, 60, 90, 120];
 
 export const computePrice = (rate: Rate | undefined, players: number, elapsedMinutes: number): number => {
   if (!rate) return 0;
+  const grace = Math.max(0, Number(rate.grace_minutes || 0));
   const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
   if (slabs.length) {
     const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
-    // "₹price up to X minutes" — pick the first slab whose minutes >= elapsed.
-    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes));
+    // "₹price up to X minutes" with global grace delaying every slab transition.
+    const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes) + grace);
     if (band) return Number(band.price);
-    // Beyond largest slab → use the highest slab's price.
     return Number(sorted[sorted.length - 1].price);
   }
   return +(((rate.hourly_rate || 0) * (elapsedMinutes / 60)) * Math.max(1, players)).toFixed(2);
@@ -150,7 +157,7 @@ const FloorMap = () => {
     const [{ data: a }, { data: s }, { data: r }, { data: o }, { data: c }] = await Promise.all([
       supabase.from("assets").select("*").eq("cafe_id", cafeId).order("name"),
       supabase.from("sessions").select("id, asset_id, started_at, customer_name, player_count, planned_minutes, parent_session_id, player_segments").eq("cafe_id", cafeId).eq("status", "active"),
-      supabase.from("rate_profiles").select("id, hourly_rate, slabs").eq("cafe_id", cafeId),
+      supabase.from("rate_profiles").select("id, hourly_rate, slabs, grace_minutes, cooling_minutes, cooling_amount").eq("cafe_id", cafeId),
       supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes, conditions").eq("cafe_id", cafeId).eq("active", true),
       supabase.from("cafes").select("tuya_server_url").eq("id", cafeId).maybeSingle(),
     ]);

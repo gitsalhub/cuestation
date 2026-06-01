@@ -224,6 +224,7 @@ const FloorMap = () => {
       started_by: user?.id, status: "active",
       player_count: startAsset.category === "ps5" ? players : 1,
       planned_minutes: planned,
+      rate_profile_id: startAsset.rate_profile_id || null,
     });
     if (error) return toast.error(error.message);
     await supabase.from("assets").update({ status: "occupied" }).eq("id", startAsset.id);

@@ -441,9 +441,10 @@ const FloorMap = () => {
     }
 
     // Game amount for current (active) session — uses player segments if any
-    const rate = rates.find((r) => r.id === asset.rate_profile_id);
+    const rate = rateForSession(session, asset);
+    const endTime = Date.now();
     const segs = (session.player_segments || []).map((s) => ({ players: Number(s.players), started_at: s.started_at, ended_at: s.ended_at || null }));
-    const { game: currentGame } = priceWithSegments(rate as any, segs, session.player_count || 1, session.started_at, Date.now(), null);
+    const { game: currentGame } = priceWithSegments(rate as any, segs, session.player_count || 1, session.started_at, endTime, null);
 
     // Pull all items for chain + parent transferred sessions' game/items totals
     const { data: items } = await supabase.from("session_items").select("product_name, qty, price, session_id").in("session_id", chainIds);
@@ -473,9 +474,20 @@ const FloorMap = () => {
     setEndComputed(due); setEndAmount(due);
     setOverrideOn(false); setOverrideReason("");
     setEndOfferId("none");
+    // Keep everything needed to re-price when an offer is picked at end.
+    setEndCtx({ rate, segs, startedAt: session.started_at, endTime, players: session.player_count || 1, parentsGame, baseGame: game });
+    setEndHistory(((session.transfer_history || []) as any[]).map((h) => ({ from: h.from, to: h.to, time: h.time })));
     if (cafeId) {
-      const { data: offs } = await supabase.from("offers").select("id, name, offer_type, value").eq("cafe_id", cafeId).eq("active", true);
-      setEndOffers((offs || []).filter((o: any) => o.offer_type !== "time_based"));
+      const { data: offs } = await supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes").eq("cafe_id", cafeId).eq("active", true);
+      const totalMin = Math.ceil((endTime - new Date(session.started_at).getTime()) / 60000);
+      setEndOffers((offs || []).filter((o: any) => {
+        if (o.offer_type === "time_based") {
+          const m = Number(o.min_minutes || 0), f = Number(o.free_minutes || 0);
+          // Free-minutes offer becomes selectable only after (playFor + free) minutes.
+          return f > 0 && totalMin >= m + f;
+        }
+        return true;
+      }));
     }
     setPayMethod("cash"); setPayChosen(false); setCashAmt(0); setUpiAmt(0);
   };

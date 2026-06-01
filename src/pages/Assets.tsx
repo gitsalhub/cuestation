@@ -225,6 +225,7 @@ const Assets = () => {
                       name: r.name, category: r.category, rate_profile_id: r.rate_profile_id || "",
                       tuya_device_id: r.tuya_device_id || "", tuya_device_name: r.tuya_device_name || "",
                       tuya_server_url: r.tuya_server_url || "",
+                      alert_enabled: !!r.alert_enabled, alert_minutes: Number(r.alert_minutes || 0),
                     });
                     setOpen(true);
                   }}><Edit2 className="w-3 h-3" /></Button>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X } from "lucide-react";
+import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, Volume2, VolumeX, MoveRight } from "lucide-react";
 import { toast } from "sonner";
 import NumberInput from "@/components/NumberInput";
 import { priceWithSegments } from "@/lib/pricing";
@@ -25,12 +25,16 @@ type Asset = {
   tuya_server_url?: string | null;
   tuya_state?: string | null;
   cafe_id?: string;
+  alert_enabled?: boolean | null;
+  alert_minutes?: number | null;
 };
 type Session = {
   id: string; asset_id: string; started_at: string; customer_name: string | null;
   player_count: number; planned_minutes: number | null;
   parent_session_id?: string | null;
   player_segments?: { players: number; started_at: string; ended_at?: string | null }[] | null;
+  transfer_history?: { from?: string; to?: string; from_id?: string; to_id?: string; time?: string }[] | null;
+  rate_profile_id?: string | null;
 };
 type Rate = {
   id: string;

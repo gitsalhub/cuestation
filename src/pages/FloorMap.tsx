@@ -1125,16 +1125,35 @@ const FloorMap = () => {
                   </div>
 
                   {/* Action tiles */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                     {tile(<Clock className="w-4 h-4" />, "Extend", "Session Timer", "text-primary",
                       () => { const a = endingAsset; setEndingAsset(null); openExtend(a); })}
                     {tile(<ArrowLeftRight className="w-4 h-4" />, "Transfer", "Move Asset", "text-accent",
                       () => { const a = endingAsset; setEndingAsset(null); openTransfer(a); })}
+                    {tile(<MoveRight className="w-4 h-4" />, "Shift", "Same Session", "text-primary",
+                      () => { const a = endingAsset; setEndingAsset(null); openShift(a); })}
                     {tile(<Users className="w-4 h-4" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
                       () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); }, !hasMultiPlayerRate(endingAsset?.rate_profile_id))}
                     {tile(<Wallet className="w-4 h-4" />, "Advance", "Add Payment", "text-success",
                       () => { const a = endingAsset; setEndingAsset(null); openAdvance(a); })}
                   </div>
+
+                  {/* Transfer history */}
+                  {endHistory.length > 0 && (
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <div className="flex items-center gap-2 mb-1 text-muted-foreground text-[11px] uppercase tracking-wider">
+                        <MoveRight className="w-3.5 h-3.5" /> Transfer History
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        {endHistory.map((h, i) => (
+                          <div key={i} className="flex justify-between gap-2">
+                            <span className="truncate">{h.from || "?"} → {h.to || "?"}</span>
+                            <span className="font-mono text-muted-foreground shrink-0">{h.time ? new Date(h.time).toLocaleTimeString() : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Offer (optional) */}
                   {endOffers.length > 0 && (

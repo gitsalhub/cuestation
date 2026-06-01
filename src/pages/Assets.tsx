@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Edit2, Trash2, AlertTriangle, Power, PowerOff, Activity, Save, Zap } from "lucide-react";
@@ -42,6 +43,7 @@ const Assets = () => {
   const [form, setForm] = useState<any>({
     name: "", category: "console", rate_profile_id: "",
     tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
+    alert_enabled: false, alert_minutes: 0,
   });
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [confirmReset, setConfirmReset] = useState<any | null>(null);
@@ -82,6 +84,8 @@ const Assets = () => {
       tuya_device_id: form.tuya_device_id?.trim() || null,
       tuya_device_name: form.tuya_device_name?.trim() || null,
       tuya_server_url: form.tuya_server_url?.trim() || null,
+      alert_enabled: !!form.alert_enabled,
+      alert_minutes: Number(form.alert_minutes || 0),
     };
     const { error } = editing
       ? await supabase.from("assets").update(payload).eq("id", editing.id)

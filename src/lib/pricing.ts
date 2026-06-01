@@ -116,7 +116,8 @@ export function priceWithSegments(
   if (offer?.offer_type === "time_based") {
     const min = Number(offer.min_minutes || 0);
     const free = Number(offer.free_minutes || 0);
-    if (totalMinutes >= min && free > 0) {
+    // Offer is only valid once the session has played for (playFor + free) minutes.
+    if (free > 0 && totalMinutes >= min + free) {
       let toTrim = free;
       for (let i = billableSegs.length - 1; i >= 0 && toTrim > 0; i--) {
         const cut = Math.min(toTrim, billableSegs[i].minutes);
@@ -141,14 +142,22 @@ export function priceWithSegments(
     }
   } else {
     // Player count changed mid-session → dynamic prorated billing per segment.
-    for (const s of nonEmpty) {
-      const slabPrice = priceForElapsed(rate, s.players, s.minutes);
-      const slabMins = pickSlabMinutes(rate, s.players, s.minutes);
-      if (slabMins > 0) {
-        game += (s.minutes / slabMins) * slabPrice;
+    // Closed (earlier) segments are billed proportionally on their actual
+    // minutes. The LAST segment is the currently-running one: it is *predicted*
+    // to continue at the current player count until the current slab completes.
+    const billableTotal = nonEmpty.reduce((s, x) => s + x.minutes, 0);
+    let elapsedBefore = 0;
+    for (let i = 0; i < nonEmpty.length; i++) {
+      const s = nonEmpty[i];
+      const isLast = i === nonEmpty.length - 1;
+      if (isLast) {
+        game += predictSegmentPrice(rate, s.players, elapsedBefore, billableTotal);
       } else {
-        game += slabPrice;
+        const slabPrice = priceForElapsed(rate, s.players, s.minutes);
+        const slabMins = pickSlabMinutes(rate, s.players, s.minutes);
+        game += slabMins > 0 ? (s.minutes / slabMins) * slabPrice : slabPrice;
       }
+      elapsedBefore += s.minutes;
     }
   }
 
@@ -173,4 +182,40 @@ function pickSlabMinutes(rate: RateLike | undefined | null, players: number, ela
   const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
   const band = sorted.find((s) => elapsedMinutes <= Number(s.minutes) + grace);
   return Number((band || sorted[sorted.length - 1]).minutes);
+}
+
+/**
+ * Price the currently-running (last) segment by PREDICTING that the current
+ * player count continues until the current slab completes.
+ *
+ *   predictedMinutes = currentSlabMinutes - minutesConsumedBeforeThisSegment
+ *   price            = (predictedMinutes / currentSlabMinutes) * currentSlabPrice
+ *
+ * The current slab is the band that the *total* elapsed time falls into. Grace
+ * only delays the transition to the next slab — the divisor / target duration
+ * always uses the slab's real minutes (never minutes + grace).
+ */
+function predictSegmentPrice(
+  rate: RateLike | undefined | null,
+  players: number,
+  elapsedBefore: number,
+  totalElapsed: number
+): number {
+  if (!rate) return 0;
+  const openMinutes = Math.max(0, totalElapsed - elapsedBefore);
+  const grace = Math.max(0, Number(rate.grace_minutes || 0));
+  const slabs = (rate.slabs || []).filter((s) => Number(s.players) === players);
+  if (!slabs.length) {
+    const hourly = Number(rate.hourly_rate || 0);
+    return hourly * (openMinutes / 60) * Math.max(1, players);
+  }
+  const sorted = [...slabs].sort((a, b) => a.minutes - b.minutes);
+  const band = sorted.find((s) => totalElapsed <= Number(s.minutes) + grace) || sorted[sorted.length - 1];
+  const bandMins = Number(band.minutes);
+  const bandPrice = Number(band.price);
+  if (bandMins <= 0) return bandPrice;
+  let predictedMins = bandMins - elapsedBefore;
+  // Earlier segments already consumed past this slab → fall back to actual.
+  if (predictedMins <= 0) predictedMins = openMinutes;
+  return (predictedMins / bandMins) * bandPrice;
 }

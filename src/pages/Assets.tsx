@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Edit2, Trash2, AlertTriangle, Power, PowerOff, Activity, Save, Zap } from "lucide-react";
@@ -42,6 +43,7 @@ const Assets = () => {
   const [form, setForm] = useState<any>({
     name: "", category: "console", rate_profile_id: "",
     tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
+    alert_enabled: false, alert_minutes: 0,
   });
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [confirmReset, setConfirmReset] = useState<any | null>(null);
@@ -82,6 +84,8 @@ const Assets = () => {
       tuya_device_id: form.tuya_device_id?.trim() || null,
       tuya_device_name: form.tuya_device_name?.trim() || null,
       tuya_server_url: form.tuya_server_url?.trim() || null,
+      alert_enabled: !!form.alert_enabled,
+      alert_minutes: Number(form.alert_minutes || 0),
     };
     const { error } = editing
       ? await supabase.from("assets").update(payload).eq("id", editing.id)
@@ -144,7 +148,7 @@ const Assets = () => {
     <>
       <PageHeader title="Assets" description="Pool tables, consoles, PCs"
         actions={
-          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_device_id: "", tuya_device_name: "", tuya_server_url: "" }); setOpen(true); }}
+          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0 }); setOpen(true); }}
             className="bg-gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-1" />Add asset</Button>
         } />
 
@@ -221,6 +225,7 @@ const Assets = () => {
                       name: r.name, category: r.category, rate_profile_id: r.rate_profile_id || "",
                       tuya_device_id: r.tuya_device_id || "", tuya_device_name: r.tuya_device_name || "",
                       tuya_server_url: r.tuya_server_url || "",
+                      alert_enabled: !!r.alert_enabled, alert_minutes: Number(r.alert_minutes || 0),
                     });
                     setOpen(true);
                   }}><Edit2 className="w-3 h-3" /></Button>
@@ -285,6 +290,23 @@ const Assets = () => {
                 </div>
               </div>
             )}
+
+            <div className="border-t border-border pt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Session time alert</Label>
+                <Switch checked={!!form.alert_enabled} onCheckedChange={(v) => setForm({ ...form, alert_enabled: v })} />
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-2">
+                Plays a beep when a session reaches its closing time. Uses the session's planned duration, or the fallback minutes below for open sessions.
+              </p>
+              {form.alert_enabled && (
+                <div>
+                  <Label className="text-xs">Alert time (minutes, fallback for open sessions)</Label>
+                  <Input type="number" min={0} value={form.alert_minutes}
+                    onChange={(e) => setForm({ ...form, alert_minutes: Number(e.target.value) })} placeholder="e.g. 60" />
+                </div>
+              )}
+            </div>
 
             <Button onClick={save} className="w-full bg-gradient-primary text-primary-foreground">Save</Button>
           </div>

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X } from "lucide-react";
+import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import NumberInput from "@/components/NumberInput";
 import { priceWithSegments } from "@/lib/pricing";
@@ -25,12 +25,16 @@ type Asset = {
   tuya_server_url?: string | null;
   tuya_state?: string | null;
   cafe_id?: string;
+  alert_enabled?: boolean | null;
+  alert_minutes?: number | null;
 };
 type Session = {
   id: string; asset_id: string; started_at: string; customer_name: string | null;
   player_count: number; planned_minutes: number | null;
   parent_session_id?: string | null;
   player_segments?: { players: number; started_at: string; ended_at?: string | null }[] | null;
+  transfer_history?: { from?: string; to?: string; from_id?: string; to_id?: string; time?: string }[] | null;
+  rate_profile_id?: string | null;
 };
 type Rate = {
   id: string;
@@ -82,6 +86,12 @@ const FloorMap = () => {
     const set = new Set((r.slabs || []).map((s) => Number(s.players)));
     return set.size > 1;
   };
+  // A session keeps its original rate profile even after it is shifted to
+  // another asset; fall back to the asset's rate for older sessions.
+  const rateForSession = (session: Session | null | undefined, asset: Asset | null | undefined) => {
+    const rid = session?.rate_profile_id || asset?.rate_profile_id || null;
+    return rates.find((r) => r.id === rid);
+  };
   const [activeOffers, setActiveOffers] = useState<any[]>([]);
   const [now, setNow] = useState(Date.now());
   const [editMode, setEditMode] = useState(false);
@@ -130,6 +140,38 @@ const FloorMap = () => {
   const [chainAssetIds, setChainAssetIds] = useState<string[]>([]);
   const [endAdvances, setEndAdvances] = useState(0);
   const [endItemsList, setEndItemsList] = useState<{ name: string; qty: number; price: number }[]>([]);
+  // Frozen context so an offer chosen at end re-computes against the same data.
+  const [endCtx, setEndCtx] = useState<any>(null);
+  const [endHistory, setEndHistory] = useState<{ from?: string; to?: string; time?: string }[]>([]);
+
+  // Shift asset (move the live session to another asset without losing data)
+  const [shiftAsset, setShiftAsset] = useState<Asset | null>(null);
+  const [shiftSession, setShiftSession] = useState<Session | null>(null);
+  const [shiftTo, setShiftTo] = useState<string>("");
+
+  // ── Session time alerts ──
+  const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>({});
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const beepTimerRef = useRef<any>(null);
+  // Closing time the alert fires at: the session's planned end, else the asset default.
+  const alertTarget = (a: Asset, session?: Session | null) =>
+    Number(session?.planned_minutes || a.alert_minutes || 0);
+  const isAlerting = (a: Asset, session?: Session | null) => {
+    if (!a.alert_enabled || !session) return false;
+    const target = alertTarget(a, session);
+    if (target <= 0) return false;
+    const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
+    // Re-fires when extended (target grows) because the muted threshold no longer matches.
+    return elapsedMin >= target && mutedAlerts[a.id] !== target;
+  };
+  const toggleMuteAlert = (a: Asset, session?: Session | null) => {
+    const target = alertTarget(a, session);
+    setMutedAlerts((m) => {
+      const next = { ...m };
+      if (next[a.id] === target) delete next[a.id]; else next[a.id] = target;
+      return next;
+    });
+  };
 
   // Details popup (clicking an active tile)
   const [detailsAsset, setDetailsAsset] = useState<Asset | null>(null);
@@ -156,7 +198,7 @@ const FloorMap = () => {
     if (!cafeId) return;
     const [{ data: a }, { data: s }, { data: r }, { data: o }, { data: c }] = await Promise.all([
       supabase.from("assets").select("*").eq("cafe_id", cafeId).order("name"),
-      supabase.from("sessions").select("id, asset_id, started_at, customer_name, player_count, planned_minutes, parent_session_id, player_segments").eq("cafe_id", cafeId).eq("status", "active"),
+      supabase.from("sessions").select("id, asset_id, started_at, customer_name, player_count, planned_minutes, parent_session_id, player_segments, transfer_history, rate_profile_id").eq("cafe_id", cafeId).eq("status", "active"),
       supabase.from("rate_profiles").select("id, hourly_rate, slabs, grace_minutes, cooling_minutes, cooling_amount").eq("cafe_id", cafeId),
       supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes, conditions").eq("cafe_id", cafeId).eq("active", true),
       supabase.from("cafes").select("tuya_server_url").eq("id", cafeId).maybeSingle(),
@@ -181,6 +223,32 @@ const FloorMap = () => {
   };
 
   useEffect(() => { load(); }, [cafeId]);
+
+  // Beep continuously while any asset is alerting (and not muted); stop otherwise.
+  useEffect(() => {
+    const anyAlert = assets.some((a) => isAlerting(a, sessions.find((s) => s.asset_id === a.id)));
+    if (anyAlert && !beepTimerRef.current) {
+      const play = () => {
+        try {
+          const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+          const ctx = audioCtxRef.current || new Ctx();
+          audioCtxRef.current = ctx;
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.type = "square"; o.frequency.value = 880;
+          o.connect(g); g.connect(ctx.destination);
+          g.gain.setValueAtTime(0.0001, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+          o.start(); o.stop(ctx.currentTime + 0.37);
+        } catch { /* audio not available */ }
+      };
+      play();
+      beepTimerRef.current = setInterval(play, 1000);
+    } else if (!anyAlert && beepTimerRef.current) {
+      clearInterval(beepTimerRef.current); beepTimerRef.current = null;
+    }
+  }, [now, assets, sessions, mutedAlerts]);
+  useEffect(() => () => { if (beepTimerRef.current) clearInterval(beepTimerRef.current); }, []);
   useEffect(() => {
     const ch = supabase.channel("floor")
       .on("postgres_changes", { event: "*", schema: "public", table: "assets" }, load)
@@ -206,6 +274,7 @@ const FloorMap = () => {
       started_by: user?.id, status: "active",
       player_count: startAsset.category === "ps5" ? players : 1,
       planned_minutes: planned,
+      rate_profile_id: startAsset.rate_profile_id || null,
     });
     if (error) return toast.error(error.message);
     await supabase.from("assets").update({ status: "occupied" }).eq("id", startAsset.id);
@@ -404,6 +473,41 @@ const FloorMap = () => {
     setTransferAsset(null); setTransferSession(null); load();
   };
 
+  // ── Shift Asset: move the SAME live session to another asset (no data loss) ──
+  const openShift = (a: Asset) => {
+    const session = sessions.find((s) => s.asset_id === a.id);
+    if (!session) return;
+    setDetailsAsset(null);
+    setShiftAsset(a); setShiftSession(session); setShiftTo("");
+  };
+  const confirmShift = async () => {
+    if (!shiftAsset || !shiftSession || !shiftTo || !cafeId) return;
+    const target = assets.find((x) => x.id === shiftTo);
+    if (!target) return;
+    if (target.id === shiftAsset.id) return toast.error("Pick a different asset");
+    if (target.status !== "available") return toast.error("Destination asset is not available");
+    const { data: { user } } = await supabase.auth.getUser();
+    const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));
+    hist.push({ from: shiftAsset.name, to: target.name, from_id: shiftAsset.id, to_id: target.id, time: new Date().toISOString() });
+    // Same session id, started_at, segments, items, advances — only the asset changes.
+    const { error } = await supabase.from("sessions").update({ asset_id: target.id, transfer_history: hist }).eq("id", shiftSession.id);
+    if (error) return toast.error(error.message);
+    await supabase.from("assets").update({ status: "available" }).eq("id", shiftAsset.id);
+    await supabase.from("assets").update({ status: "occupied" }).eq("id", target.id);
+    await supabase.from("transfer_logs").insert({
+      cafe_id: cafeId, session_id: shiftSession.id,
+      from_asset_id: shiftAsset.id, to_asset_id: target.id, transferred_by: user?.id,
+    });
+    // Smart switch OFF on source, ON on target (best-effort)
+    if (shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
+    if (target.tuya_device_id) {
+      const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "shift_in");
+      if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
+    }
+    toast.success(`Session shifted to ${target.name}`);
+    setShiftAsset(null); setShiftSession(null); setShiftTo(""); load();
+  };
+
   const beginEnd = async (asset: Asset) => {
     const session = sessions.find((s) => s.asset_id === asset.id);
     if (!session) return;
@@ -422,9 +526,10 @@ const FloorMap = () => {
     }
 
     // Game amount for current (active) session — uses player segments if any
-    const rate = rates.find((r) => r.id === asset.rate_profile_id);
+    const rate = rateForSession(session, asset);
+    const endTime = Date.now();
     const segs = (session.player_segments || []).map((s) => ({ players: Number(s.players), started_at: s.started_at, ended_at: s.ended_at || null }));
-    const { game: currentGame } = priceWithSegments(rate as any, segs, session.player_count || 1, session.started_at, Date.now(), null);
+    const { game: currentGame } = priceWithSegments(rate as any, segs, session.player_count || 1, session.started_at, endTime, null);
 
     // Pull all items for chain + parent transferred sessions' game/items totals
     const { data: items } = await supabase.from("session_items").select("product_name, qty, price, session_id").in("session_id", chainIds);
@@ -454,9 +559,20 @@ const FloorMap = () => {
     setEndComputed(due); setEndAmount(due);
     setOverrideOn(false); setOverrideReason("");
     setEndOfferId("none");
+    // Keep everything needed to re-price when an offer is picked at end.
+    setEndCtx({ rate, segs, startedAt: session.started_at, endTime, players: session.player_count || 1, parentsGame, baseGame: game });
+    setEndHistory(((session.transfer_history || []) as any[]).map((h) => ({ from: h.from, to: h.to, time: h.time })));
     if (cafeId) {
-      const { data: offs } = await supabase.from("offers").select("id, name, offer_type, value").eq("cafe_id", cafeId).eq("active", true);
-      setEndOffers((offs || []).filter((o: any) => o.offer_type !== "time_based"));
+      const { data: offs } = await supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes").eq("cafe_id", cafeId).eq("active", true);
+      const totalMin = Math.ceil((endTime - new Date(session.started_at).getTime()) / 60000);
+      setEndOffers((offs || []).filter((o: any) => {
+        if (o.offer_type === "time_based") {
+          const m = Number(o.min_minutes || 0), f = Number(o.free_minutes || 0);
+          // Free-minutes offer becomes selectable only after (playFor + free) minutes.
+          return f > 0 && totalMin >= m + f;
+        }
+        return true;
+      }));
     }
     setPayMethod("cash"); setPayChosen(false); setCashAmt(0); setUpiAmt(0);
   };
@@ -636,10 +752,15 @@ const FloorMap = () => {
   };
 
   const eligibleOffers = (a: Asset, session: Session) => {
-    const rate = rates.find((r) => r.id === a.rate_profile_id);
+    const rate = rateForSession(session, a);
     const elapsedMin = Math.max(0, (now - new Date(session.started_at).getTime()) / 60000);
     const game = computePrice(rate, session.player_count || 1, Math.ceil(elapsedMin));
     return activeOffers.filter((o: any) => {
+      if (o.offer_type === "time_based") {
+        const m = Number(o.min_minutes || 0), f = Number(o.free_minutes || 0);
+        // Available only after (playFor + free) minutes.
+        return f > 0 && elapsedMin >= m + f;
+      }
       const minMin = Number(o.min_minutes || 0);
       const minAmt = Number(o?.conditions?.min_amount || 0);
       if (minMin > 0 && elapsedMin < minMin) return false;
@@ -735,6 +856,20 @@ const FloorMap = () => {
                       </div>
                       <div className="font-bold text-sm truncate shrink-0">{a.name}</div>
                       <div className="text-xs text-muted-foreground capitalize mb-1 truncate shrink-0">{a.category}</div>
+                      {isAlerting(a, session) && (
+                        <span role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
+                          className="absolute top-1 right-1 z-10 text-destructive animate-pulse" title="Mute alert">
+                          <Volume2 className="w-4 h-4" />
+                        </span>
+                      )}
+                      {!isAlerting(a, session) && session && a.alert_enabled && mutedAlerts[a.id] === alertTarget(a, session) && (
+                        <span role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
+                          className="absolute top-1 right-1 z-10 text-muted-foreground" title="Unmute alert">
+                          <VolumeX className="w-4 h-4" />
+                        </span>
+                      )}
                       {session && (() => {
                         const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
                         const remaining = session.planned_minutes ? session.planned_minutes - elapsedMin : null;
@@ -1054,16 +1189,35 @@ const FloorMap = () => {
                   </div>
 
                   {/* Action tiles */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                     {tile(<Clock className="w-4 h-4" />, "Extend", "Session Timer", "text-primary",
                       () => { const a = endingAsset; setEndingAsset(null); openExtend(a); })}
                     {tile(<ArrowLeftRight className="w-4 h-4" />, "Transfer", "Move Asset", "text-accent",
                       () => { const a = endingAsset; setEndingAsset(null); openTransfer(a); })}
+                    {tile(<MoveRight className="w-4 h-4" />, "Shift", "Same Session", "text-primary",
+                      () => { const a = endingAsset; setEndingAsset(null); openShift(a); })}
                     {tile(<Users className="w-4 h-4" />, `Players (${endingSession.player_count})`, "Change Count", "text-orange-500",
                       () => { const a = endingAsset; setEndingAsset(null); openChangePlayers(a); }, !hasMultiPlayerRate(endingAsset?.rate_profile_id))}
                     {tile(<Wallet className="w-4 h-4" />, "Advance", "Add Payment", "text-success",
                       () => { const a = endingAsset; setEndingAsset(null); openAdvance(a); })}
                   </div>
+
+                  {/* Transfer history */}
+                  {endHistory.length > 0 && (
+                    <div className="rounded-xl border border-border bg-card/40 p-3">
+                      <div className="flex items-center gap-2 mb-1 text-muted-foreground text-[11px] uppercase tracking-wider">
+                        <MoveRight className="w-3.5 h-3.5" /> Transfer History
+                      </div>
+                      <div className="space-y-1 text-xs">
+                        {endHistory.map((h, i) => (
+                          <div key={i} className="flex justify-between gap-2">
+                            <span className="truncate">{h.from || "?"} → {h.to || "?"}</span>
+                            <span className="font-mono text-muted-foreground shrink-0">{h.time ? new Date(h.time).toLocaleTimeString() : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Offer (optional) */}
                   {endOffers.length > 0 && (
@@ -1072,7 +1226,15 @@ const FloorMap = () => {
                       <Select value={endOfferId} onValueChange={(v) => {
                         setEndOfferId(v);
                         const off = endOffers.find((o: any) => o.id === v);
-                        let total = endGame + endItems;
+                        // Free-minutes offers reduce billable DURATION → recompute the
+                        // game cost from scratch. Fixed / percentage discount the total.
+                        let game = endCtx?.baseGame ?? endGame;
+                        if (off?.offer_type === "time_based" && endCtx) {
+                          const cg = priceWithSegments(endCtx.rate, endCtx.segs, endCtx.players, endCtx.startedAt, endCtx.endTime, off).game;
+                          game = +(cg + (endCtx.parentsGame || 0)).toFixed(2);
+                        }
+                        setEndGame(game);
+                        let total = game + endItems;
                         if (off) {
                           if (off.offer_type === "percentage") total = total - (total * Number(off.value) / 100);
                           else if (off.offer_type === "fixed") total = Math.max(0, total - Number(off.value));
@@ -1237,6 +1399,29 @@ const FloorMap = () => {
               ))}
             </div>
             <Button onClick={confirmChangePlayers} className="w-full bg-gradient-primary text-primary-foreground">Update players</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Shift asset dialog — moves the SAME session to another asset */}
+      <Dialog open={!!shiftAsset} onOpenChange={(o) => !o && (setShiftAsset(null), setShiftSession(null))}>
+        <DialogContent className="glass-card">
+          <DialogHeader><DialogTitle>Shift session — {shiftAsset?.name}</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">The session continues exactly where it is — same timer, bill, items and players — just on another asset.</p>
+          <div className="space-y-3 mt-2">
+            <div>
+              <Label>Destination asset</Label>
+              <Select value={shiftTo} onValueChange={setShiftTo}>
+                <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
+                <SelectContent>
+                  {assets.filter((a) => a.status === "available" && a.id !== shiftAsset?.id).map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={confirmShift} disabled={!shiftTo} className="w-full bg-gradient-primary text-primary-foreground">
+              Shift session
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

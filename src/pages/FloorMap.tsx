@@ -140,6 +140,14 @@ const FloorMap = () => {
   const [chainAssetIds, setChainAssetIds] = useState<string[]>([]);
   const [endAdvances, setEndAdvances] = useState(0);
   const [endItemsList, setEndItemsList] = useState<{ name: string; qty: number; price: number }[]>([]);
+  // Frozen context so an offer chosen at end re-computes against the same data.
+  const [endCtx, setEndCtx] = useState<any>(null);
+  const [endHistory, setEndHistory] = useState<{ from?: string; to?: string; time?: string }[]>([]);
+
+  // Shift asset (move the live session to another asset without losing data)
+  const [shiftAsset, setShiftAsset] = useState<Asset | null>(null);
+  const [shiftSession, setShiftSession] = useState<Session | null>(null);
+  const [shiftTo, setShiftTo] = useState<string>("");
 
   // Details popup (clicking an active tile)
   const [detailsAsset, setDetailsAsset] = useState<Asset | null>(null);

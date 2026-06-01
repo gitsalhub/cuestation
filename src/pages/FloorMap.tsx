@@ -86,6 +86,12 @@ const FloorMap = () => {
     const set = new Set((r.slabs || []).map((s) => Number(s.players)));
     return set.size > 1;
   };
+  // A session keeps its original rate profile even after it is shifted to
+  // another asset; fall back to the asset's rate for older sessions.
+  const rateForSession = (session: Session | null | undefined, asset: Asset | null | undefined) => {
+    const rid = session?.rate_profile_id || asset?.rate_profile_id || null;
+    return rates.find((r) => r.id === rid);
+  };
   const [activeOffers, setActiveOffers] = useState<any[]>([]);
   const [now, setNow] = useState(Date.now());
   const [editMode, setEditMode] = useState(false);

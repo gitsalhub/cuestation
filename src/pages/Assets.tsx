@@ -291,6 +291,23 @@ const Assets = () => {
               </div>
             )}
 
+            <div className="border-t border-border pt-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Session time alert</Label>
+                <Switch checked={!!form.alert_enabled} onCheckedChange={(v) => setForm({ ...form, alert_enabled: v })} />
+              </div>
+              <p className="text-[11px] text-muted-foreground -mt-2">
+                Plays a beep when a session reaches its closing time. Uses the session's planned duration, or the fallback minutes below for open sessions.
+              </p>
+              {form.alert_enabled && (
+                <div>
+                  <Label className="text-xs">Alert time (minutes, fallback for open sessions)</Label>
+                  <Input type="number" min={0} value={form.alert_minutes}
+                    onChange={(e) => setForm({ ...form, alert_minutes: Number(e.target.value) })} placeholder="e.g. 60" />
+                </div>
+              )}
+            </div>
+
             <Button onClick={save} className="w-full bg-gradient-primary text-primary-foreground">Save</Button>
           </div>
         </DialogContent>

@@ -423,6 +423,41 @@ const FloorMap = () => {
     setTransferAsset(null); setTransferSession(null); load();
   };
 
+  // ── Shift Asset: move the SAME live session to another asset (no data loss) ──
+  const openShift = (a: Asset) => {
+    const session = sessions.find((s) => s.asset_id === a.id);
+    if (!session) return;
+    setDetailsAsset(null);
+    setShiftAsset(a); setShiftSession(session); setShiftTo("");
+  };
+  const confirmShift = async () => {
+    if (!shiftAsset || !shiftSession || !shiftTo || !cafeId) return;
+    const target = assets.find((x) => x.id === shiftTo);
+    if (!target) return;
+    if (target.id === shiftAsset.id) return toast.error("Pick a different asset");
+    if (target.status !== "available") return toast.error("Destination asset is not available");
+    const { data: { user } } = await supabase.auth.getUser();
+    const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));
+    hist.push({ from: shiftAsset.name, to: target.name, from_id: shiftAsset.id, to_id: target.id, time: new Date().toISOString() });
+    // Same session id, started_at, segments, items, advances — only the asset changes.
+    const { error } = await supabase.from("sessions").update({ asset_id: target.id, transfer_history: hist }).eq("id", shiftSession.id);
+    if (error) return toast.error(error.message);
+    await supabase.from("assets").update({ status: "available" }).eq("id", shiftAsset.id);
+    await supabase.from("assets").update({ status: "occupied" }).eq("id", target.id);
+    await supabase.from("transfer_logs").insert({
+      cafe_id: cafeId, session_id: shiftSession.id,
+      from_asset_id: shiftAsset.id, to_asset_id: target.id, transferred_by: user?.id,
+    });
+    // Smart switch OFF on source, ON on target (best-effort)
+    if (shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
+    if (target.tuya_device_id) {
+      const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "shift_in");
+      if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
+    }
+    toast.success(`Session shifted to ${target.name}`);
+    setShiftAsset(null); setShiftSession(null); setShiftTo(""); load();
+  };
+
   const beginEnd = async (asset: Asset) => {
     const session = sessions.find((s) => s.asset_id === asset.id);
     if (!session) return;

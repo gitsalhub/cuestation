@@ -702,10 +702,15 @@ const FloorMap = () => {
   };
 
   const eligibleOffers = (a: Asset, session: Session) => {
-    const rate = rates.find((r) => r.id === a.rate_profile_id);
+    const rate = rateForSession(session, a);
     const elapsedMin = Math.max(0, (now - new Date(session.started_at).getTime()) / 60000);
     const game = computePrice(rate, session.player_count || 1, Math.ceil(elapsedMin));
     return activeOffers.filter((o: any) => {
+      if (o.offer_type === "time_based") {
+        const m = Number(o.min_minutes || 0), f = Number(o.free_minutes || 0);
+        // Available only after (playFor + free) minutes.
+        return f > 0 && elapsedMin >= m + f;
+      }
       const minMin = Number(o.min_minutes || 0);
       const minAmt = Number(o?.conditions?.min_amount || 0);
       if (minMin > 0 && elapsedMin < minMin) return false;

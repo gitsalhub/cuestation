@@ -166,7 +166,7 @@ const FloorMap = () => {
     if (!cafeId) return;
     const [{ data: a }, { data: s }, { data: r }, { data: o }, { data: c }] = await Promise.all([
       supabase.from("assets").select("*").eq("cafe_id", cafeId).order("name"),
-      supabase.from("sessions").select("id, asset_id, started_at, customer_name, player_count, planned_minutes, parent_session_id, player_segments").eq("cafe_id", cafeId).eq("status", "active"),
+      supabase.from("sessions").select("id, asset_id, started_at, customer_name, player_count, planned_minutes, parent_session_id, player_segments, transfer_history, rate_profile_id").eq("cafe_id", cafeId).eq("status", "active"),
       supabase.from("rate_profiles").select("id, hourly_rate, slabs, grace_minutes, cooling_minutes, cooling_amount").eq("cafe_id", cafeId),
       supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes, conditions").eq("cafe_id", cafeId).eq("active", true),
       supabase.from("cafes").select("tuya_server_url").eq("id", cafeId).maybeSingle(),

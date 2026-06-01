@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight } from "lucide-react";
+import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import NumberInput from "@/components/NumberInput";
 import { priceWithSegments } from "@/lib/pricing";
@@ -148,6 +148,30 @@ const FloorMap = () => {
   const [shiftAsset, setShiftAsset] = useState<Asset | null>(null);
   const [shiftSession, setShiftSession] = useState<Session | null>(null);
   const [shiftTo, setShiftTo] = useState<string>("");
+
+  // ── Session time alerts ──
+  const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>({});
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const beepTimerRef = useRef<any>(null);
+  // Closing time the alert fires at: the session's planned end, else the asset default.
+  const alertTarget = (a: Asset, session?: Session | null) =>
+    Number(session?.planned_minutes || a.alert_minutes || 0);
+  const isAlerting = (a: Asset, session?: Session | null) => {
+    if (!a.alert_enabled || !session) return false;
+    const target = alertTarget(a, session);
+    if (target <= 0) return false;
+    const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
+    // Re-fires when extended (target grows) because the muted threshold no longer matches.
+    return elapsedMin >= target && mutedAlerts[a.id] !== target;
+  };
+  const toggleMuteAlert = (a: Asset, session?: Session | null) => {
+    const target = alertTarget(a, session);
+    setMutedAlerts((m) => {
+      const next = { ...m };
+      if (next[a.id] === target) delete next[a.id]; else next[a.id] = target;
+      return next;
+    });
+  };
 
   // Details popup (clicking an active tile)
   const [detailsAsset, setDetailsAsset] = useState<Asset | null>(null);

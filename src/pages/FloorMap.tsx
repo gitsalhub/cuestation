@@ -856,6 +856,20 @@ const FloorMap = () => {
                       </div>
                       <div className="font-bold text-sm truncate shrink-0">{a.name}</div>
                       <div className="text-xs text-muted-foreground capitalize mb-1 truncate shrink-0">{a.category}</div>
+                      {isAlerting(a, session) && (
+                        <span role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
+                          className="absolute top-1 right-1 z-10 text-destructive animate-pulse" title="Mute alert">
+                          <Volume2 className="w-4 h-4" />
+                        </span>
+                      )}
+                      {!isAlerting(a, session) && session && a.alert_enabled && mutedAlerts[a.id] === alertTarget(a, session) && (
+                        <span role="button" tabIndex={0}
+                          onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
+                          className="absolute top-1 right-1 z-10 text-muted-foreground" title="Unmute alert">
+                          <VolumeX className="w-4 h-4" />
+                        </span>
+                      )}
                       {session && (() => {
                         const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
                         const remaining = session.planned_minutes ? session.planned_minutes - elapsedMin : null;

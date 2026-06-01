@@ -223,6 +223,32 @@ const FloorMap = () => {
   };
 
   useEffect(() => { load(); }, [cafeId]);
+
+  // Beep continuously while any asset is alerting (and not muted); stop otherwise.
+  useEffect(() => {
+    const anyAlert = assets.some((a) => isAlerting(a, sessions.find((s) => s.asset_id === a.id)));
+    if (anyAlert && !beepTimerRef.current) {
+      const play = () => {
+        try {
+          const Ctx = (window.AudioContext || (window as any).webkitAudioContext);
+          const ctx = audioCtxRef.current || new Ctx();
+          audioCtxRef.current = ctx;
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.type = "square"; o.frequency.value = 880;
+          o.connect(g); g.connect(ctx.destination);
+          g.gain.setValueAtTime(0.0001, ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+          o.start(); o.stop(ctx.currentTime + 0.37);
+        } catch { /* audio not available */ }
+      };
+      play();
+      beepTimerRef.current = setInterval(play, 1000);
+    } else if (!anyAlert && beepTimerRef.current) {
+      clearInterval(beepTimerRef.current); beepTimerRef.current = null;
+    }
+  }, [now, assets, sessions, mutedAlerts]);
+  useEffect(() => () => { if (beepTimerRef.current) clearInterval(beepTimerRef.current); }, []);
   useEffect(() => {
     const ch = supabase.channel("floor")
       .on("postgres_changes", { event: "*", schema: "public", table: "assets" }, load)

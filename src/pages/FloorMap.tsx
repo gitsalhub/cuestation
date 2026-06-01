@@ -1103,7 +1103,15 @@ const FloorMap = () => {
                       <Select value={endOfferId} onValueChange={(v) => {
                         setEndOfferId(v);
                         const off = endOffers.find((o: any) => o.id === v);
-                        let total = endGame + endItems;
+                        // Free-minutes offers reduce billable DURATION → recompute the
+                        // game cost from scratch. Fixed / percentage discount the total.
+                        let game = endCtx?.baseGame ?? endGame;
+                        if (off?.offer_type === "time_based" && endCtx) {
+                          const cg = priceWithSegments(endCtx.rate, endCtx.segs, endCtx.players, endCtx.startedAt, endCtx.endTime, off).game;
+                          game = +(cg + (endCtx.parentsGame || 0)).toFixed(2);
+                        }
+                        setEndGame(game);
+                        let total = game + endItems;
                         if (off) {
                           if (off.offer_type === "percentage") total = total - (total * Number(off.value) / 100);
                           else if (off.offer_type === "fixed") total = Math.max(0, total - Number(off.value));

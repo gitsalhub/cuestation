@@ -51,6 +51,8 @@ export type Database = {
       }
       assets: {
         Row: {
+          alert_enabled: boolean
+          alert_minutes: number
           cafe_id: string
           category: string
           created_at: string
@@ -68,6 +70,8 @@ export type Database = {
           width: number
         }
         Insert: {
+          alert_enabled?: boolean
+          alert_minutes?: number
           cafe_id: string
           category?: string
           created_at?: string
@@ -85,6 +89,8 @@ export type Database = {
           width?: number
         }
         Update: {
+          alert_enabled?: boolean
+          alert_minutes?: number
           cafe_id?: string
           category?: string
           created_at?: string
@@ -633,10 +639,12 @@ export type Database = {
           planned_minutes: number | null
           player_count: number
           player_segments: Json | null
+          rate_profile_id: string | null
           started_at: string
           started_by: string | null
           status: string
           total_amount: number | null
+          transfer_history: Json
           transferred_in_amount: number | null
           upi_amount: number | null
         }
@@ -660,10 +668,12 @@ export type Database = {
           planned_minutes?: number | null
           player_count?: number
           player_segments?: Json | null
+          rate_profile_id?: string | null
           started_at?: string
           started_by?: string | null
           status?: string
           total_amount?: number | null
+          transfer_history?: Json
           transferred_in_amount?: number | null
           upi_amount?: number | null
         }
@@ -687,10 +697,12 @@ export type Database = {
           planned_minutes?: number | null
           player_count?: number
           player_segments?: Json | null
+          rate_profile_id?: string | null
           started_at?: string
           started_by?: string | null
           status?: string
           total_amount?: number | null
+          transfer_history?: Json
           transferred_in_amount?: number | null
           upi_amount?: number | null
         }

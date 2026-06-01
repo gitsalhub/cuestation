@@ -1338,6 +1338,29 @@ const FloorMap = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Shift asset dialog — moves the SAME session to another asset */}
+      <Dialog open={!!shiftAsset} onOpenChange={(o) => !o && (setShiftAsset(null), setShiftSession(null))}>
+        <DialogContent className="glass-card">
+          <DialogHeader><DialogTitle>Shift session — {shiftAsset?.name}</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">The session continues exactly where it is — same timer, bill, items and players — just on another asset.</p>
+          <div className="space-y-3 mt-2">
+            <div>
+              <Label>Destination asset</Label>
+              <Select value={shiftTo} onValueChange={setShiftTo}>
+                <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
+                <SelectContent>
+                  {assets.filter((a) => a.status === "available" && a.id !== shiftAsset?.id).map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={confirmShift} disabled={!shiftTo} className="w-full bg-gradient-primary text-primary-foreground">
+              Shift session
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

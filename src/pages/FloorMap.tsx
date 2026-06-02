@@ -231,8 +231,68 @@ const FloorMap = () => {
 
   useEffect(() => { load(); }, [cafeId]);
 
+  // Ask for notification permission once so alerts can reach the user in the
+  // background (tab inactive / app minimized / screen locked).
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Resume audio when the app returns to the foreground (browsers suspend the
+  // AudioContext while the tab is hidden).
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  // Fire a background notification + vibration when an asset starts alerting.
+  const notifyAlert = (a: Asset, session?: Session | null) => {
+    const title = `${a.name} — Session Time Reached`;
+    const opts: NotificationOptions = {
+      body: `${a.name} closing time reached`,
+      tag: `session-alert-${a.id}`,
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
+      requireInteraction: true,
+    };
+    (opts as any).renotify = true;
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        if (navigator.serviceWorker?.ready) {
+          navigator.serviceWorker.ready
+            .then((reg) => reg.showNotification(title, opts))
+            .catch(() => { try { new Notification(title, opts); } catch { /* ignore */ } });
+        } else {
+          new Notification(title, opts);
+        }
+      }
+    } catch { /* notifications unavailable */ }
+    try { if (navigator.vibrate) navigator.vibrate([400, 200, 400]); } catch { /* ignore */ }
+  };
+
   // Beep continuously while any asset is alerting (and not muted); stop otherwise.
   useEffect(() => {
+    // Background notifications: fire once per (asset, target) when it starts alerting.
+    assets.forEach((a) => {
+      const session = sessions.find((s) => s.asset_id === a.id);
+      if (isAlerting(a, session)) {
+        const target = alertTarget(a, session);
+        if (notifiedRef.current[a.id] !== target) {
+          notifiedRef.current[a.id] = target;
+          notifyAlert(a, session);
+        }
+      } else if (!session) {
+        // Asset freed (session ended) → allow future sessions to re-notify.
+        delete notifiedRef.current[a.id];
+      }
+    });
+
     const anyAlert = assets.some((a) => isAlerting(a, sessions.find((s) => s.asset_id === a.id)));
     if (anyAlert && !beepTimerRef.current) {
       const play = () => {

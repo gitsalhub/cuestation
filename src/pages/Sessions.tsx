@@ -105,13 +105,20 @@ const Sessions = () => {
                       </div>
                     )}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Session information"
+                      onClick={() => { setInfoSessionId(r.id); setInfoOpen(true); }}>
+                      <Info className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
-            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No sessions in this range</TableCell></TableRow>}
+            {rows.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No sessions in this range</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
+      <SessionInfoDialog sessionId={infoSessionId} open={infoOpen} onOpenChange={(o) => { setInfoOpen(o); if (!o) setInfoSessionId(null); }} />
     </>
   );
 };

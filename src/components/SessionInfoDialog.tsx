@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { priceWithSegments } from "@/lib/pricing";
 import {
   Info, Gamepad2, Wallet, Tag, ShoppingBag, MoveRight, Clock,
-  Users, Play, Square, ArrowLeftRight, BadgePercent,
+  Users, Play, Square, BadgePercent,
 } from "lucide-react";
 
 type Props = {

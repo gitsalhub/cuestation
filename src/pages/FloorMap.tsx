@@ -1478,14 +1478,26 @@ const FloorMap = () => {
           <div className="space-y-3 mt-2">
             <div>
               <Label>Destination asset</Label>
-              <Select value={shiftTo} onValueChange={setShiftTo}>
-                <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
-                <SelectContent>
-                  {assets.filter((a) => a.status === "available" && a.id !== shiftAsset?.id).map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const eligible = assets.filter(
+                  (a) => a.status === "available" && a.id !== shiftAsset?.id && a.category === shiftAsset?.category,
+                );
+                if (eligible.length === 0) {
+                  return (
+                    <p className="text-sm text-destructive mt-1">No available assets found in this category.</p>
+                  );
+                }
+                return (
+                  <Select value={shiftTo} onValueChange={setShiftTo}>
+                    <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
+                    <SelectContent>
+                      {eligible.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
             <Button onClick={confirmShift} disabled={!shiftTo} className="w-full bg-gradient-primary text-primary-foreground">
               Shift session

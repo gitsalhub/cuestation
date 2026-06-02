@@ -68,6 +68,7 @@ const Sessions = () => {
               <TableHead>Pay</TableHead>
               <TableHead className="text-right">Advance</TableHead>
               <TableHead className="text-right">Total</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>

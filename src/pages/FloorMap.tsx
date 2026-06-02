@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight, Volume2, VolumeX } from "lucide-react";
+import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight, Volume2, VolumeX, Info } from "lucide-react";
 import { toast } from "sonner";
 import NumberInput from "@/components/NumberInput";
 import { priceWithSegments } from "@/lib/pricing";
 import { applyTuyaForAsset } from "@/lib/tuya";
+import SessionInfoDialog from "@/components/SessionInfoDialog";
 
 type Slab = { minutes: number; players: number; price: number };
 type Asset = {
@@ -153,6 +154,8 @@ const FloorMap = () => {
   const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>({});
   const audioCtxRef = useRef<AudioContext | null>(null);
   const beepTimerRef = useRef<any>(null);
+  // Tracks which alert target we've already shown a background notification for.
+  const notifiedRef = useRef<Record<string, number>>({});
   // Closing time the alert fires at: the session's planned end, else the asset default.
   const alertTarget = (a: Asset, session?: Session | null) =>
     Number(session?.planned_minutes || a.alert_minutes || 0);
@@ -175,6 +178,10 @@ const FloorMap = () => {
 
   // Details popup (clicking an active tile)
   const [detailsAsset, setDetailsAsset] = useState<Asset | null>(null);
+
+  // Read-only session information panel
+  const [infoSessionId, setInfoSessionId] = useState<string | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // Change players
   const [cpAsset, setCpAsset] = useState<Asset | null>(null);
@@ -224,8 +231,68 @@ const FloorMap = () => {
 
   useEffect(() => { load(); }, [cafeId]);
 
+  // Ask for notification permission once so alerts can reach the user in the
+  // background (tab inactive / app minimized / screen locked).
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Resume audio when the app returns to the foreground (browsers suspend the
+  // AudioContext while the tab is hidden).
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  // Fire a background notification + vibration when an asset starts alerting.
+  const notifyAlert = (a: Asset, session?: Session | null) => {
+    const title = `${a.name} — Session Time Reached`;
+    const opts: NotificationOptions = {
+      body: `${a.name} closing time reached`,
+      tag: `session-alert-${a.id}`,
+      icon: "/favicon.ico",
+      badge: "/favicon.ico",
+      requireInteraction: true,
+    };
+    (opts as any).renotify = true;
+    try {
+      if ("Notification" in window && Notification.permission === "granted") {
+        if (navigator.serviceWorker?.ready) {
+          navigator.serviceWorker.ready
+            .then((reg) => reg.showNotification(title, opts))
+            .catch(() => { try { new Notification(title, opts); } catch { /* ignore */ } });
+        } else {
+          new Notification(title, opts);
+        }
+      }
+    } catch { /* notifications unavailable */ }
+    try { if (navigator.vibrate) navigator.vibrate([400, 200, 400]); } catch { /* ignore */ }
+  };
+
   // Beep continuously while any asset is alerting (and not muted); stop otherwise.
   useEffect(() => {
+    // Background notifications: fire once per (asset, target) when it starts alerting.
+    assets.forEach((a) => {
+      const session = sessions.find((s) => s.asset_id === a.id);
+      if (isAlerting(a, session)) {
+        const target = alertTarget(a, session);
+        if (notifiedRef.current[a.id] !== target) {
+          notifiedRef.current[a.id] = target;
+          notifyAlert(a, session);
+        }
+      } else if (!session) {
+        // Asset freed (session ended) → allow future sessions to re-notify.
+        delete notifiedRef.current[a.id];
+      }
+    });
+
     const anyAlert = assets.some((a) => isAlerting(a, sessions.find((s) => s.asset_id === a.id)));
     if (anyAlert && !beepTimerRef.current) {
       const play = () => {
@@ -485,6 +552,7 @@ const FloorMap = () => {
     const target = assets.find((x) => x.id === shiftTo);
     if (!target) return;
     if (target.id === shiftAsset.id) return toast.error("Pick a different asset");
+    if (target.category !== shiftAsset.category) return toast.error("Can only shift within the same category");
     if (target.status !== "available") return toast.error("Destination asset is not available");
     const { data: { user } } = await supabase.auth.getUser();
     const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));
@@ -1122,6 +1190,11 @@ const FloorMap = () => {
                         <DialogTitle className="text-base">{endingAsset.name}</DialogTitle>
                         <div className="text-[10px] text-muted-foreground font-mono">{shortId}</div>
                       </div>
+                      <button type="button" title="Session information"
+                        onClick={() => { setInfoSessionId(endingSession.id); setInfoOpen(true); }}
+                        className="ml-1 text-muted-foreground hover:text-primary transition-colors">
+                        <Info className="w-4 h-4" />
+                      </button>
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Duration</div>
@@ -1410,14 +1483,26 @@ const FloorMap = () => {
           <div className="space-y-3 mt-2">
             <div>
               <Label>Destination asset</Label>
-              <Select value={shiftTo} onValueChange={setShiftTo}>
-                <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
-                <SelectContent>
-                  {assets.filter((a) => a.status === "available" && a.id !== shiftAsset?.id).map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {(() => {
+                const eligible = assets.filter(
+                  (a) => a.status === "available" && a.id !== shiftAsset?.id && a.category === shiftAsset?.category,
+                );
+                if (eligible.length === 0) {
+                  return (
+                    <p className="text-sm text-destructive mt-1">No available assets found in this category.</p>
+                  );
+                }
+                return (
+                  <Select value={shiftTo} onValueChange={setShiftTo}>
+                    <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
+                    <SelectContent>
+                      {eligible.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
             <Button onClick={confirmShift} disabled={!shiftTo} className="w-full bg-gradient-primary text-primary-foreground">
               Shift session
@@ -1425,6 +1510,9 @@ const FloorMap = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Read-only session information panel */}
+      <SessionInfoDialog sessionId={infoSessionId} open={infoOpen} onOpenChange={(o) => { setInfoOpen(o); if (!o) setInfoSessionId(null); }} />
     </>
   );
 };

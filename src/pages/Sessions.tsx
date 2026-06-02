@@ -5,12 +5,17 @@ import PageHeader from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Info } from "lucide-react";
+import SessionInfoDialog from "@/components/SessionInfoDialog";
 
 const Sessions = () => {
   const { cafeId } = useAuth();
   const [range, setRange] = useState<"day" | "week" | "month">("day");
   const [rows, setRows] = useState<any[]>([]);
   const [advMap, setAdvMap] = useState<Record<string, { amount: number; methods: string[] }>>({});
+  const [infoSessionId, setInfoSessionId] = useState<string | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
     if (!cafeId) return;
@@ -63,6 +68,7 @@ const Sessions = () => {
               <TableHead>Pay</TableHead>
               <TableHead className="text-right">Advance</TableHead>
               <TableHead className="text-right">Total</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -99,13 +105,20 @@ const Sessions = () => {
                       </div>
                     )}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" title="Session information"
+                      onClick={() => { setInfoSessionId(r.id); setInfoOpen(true); }}>
+                      <Info className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               );
             })}
-            {rows.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No sessions in this range</TableCell></TableRow>}
+            {rows.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">No sessions in this range</TableCell></TableRow>}
           </TableBody>
         </Table>
       </Card>
+      <SessionInfoDialog sessionId={infoSessionId} open={infoOpen} onOpenChange={(o) => { setInfoOpen(o); if (!o) setInfoSessionId(null); }} />
     </>
   );
 };

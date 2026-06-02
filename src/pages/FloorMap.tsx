@@ -1190,6 +1190,11 @@ const FloorMap = () => {
                         <DialogTitle className="text-base">{endingAsset.name}</DialogTitle>
                         <div className="text-[10px] text-muted-foreground font-mono">{shortId}</div>
                       </div>
+                      <button type="button" title="Session information"
+                        onClick={() => { setInfoSessionId(endingSession.id); setInfoOpen(true); }}
+                        className="ml-1 text-muted-foreground hover:text-primary transition-colors">
+                        <Info className="w-4 h-4" />
+                      </button>
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] uppercase tracking-widest text-muted-foreground">Duration</div>

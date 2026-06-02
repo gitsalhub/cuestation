@@ -179,6 +179,10 @@ const FloorMap = () => {
   // Details popup (clicking an active tile)
   const [detailsAsset, setDetailsAsset] = useState<Asset | null>(null);
 
+  // Read-only session information panel
+  const [infoSessionId, setInfoSessionId] = useState<string | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+
   // Change players
   const [cpAsset, setCpAsset] = useState<Asset | null>(null);
   const [cpSession, setCpSession] = useState<Session | null>(null);

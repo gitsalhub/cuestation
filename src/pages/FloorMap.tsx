@@ -154,6 +154,8 @@ const FloorMap = () => {
   const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>({});
   const audioCtxRef = useRef<AudioContext | null>(null);
   const beepTimerRef = useRef<any>(null);
+  // Tracks which alert target we've already shown a background notification for.
+  const notifiedRef = useRef<Record<string, number>>({});
   // Closing time the alert fires at: the session's planned end, else the asset default.
   const alertTarget = (a: Asset, session?: Session | null) =>
     Number(session?.planned_minutes || a.alert_minutes || 0);

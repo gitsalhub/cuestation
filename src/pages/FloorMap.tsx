@@ -1510,6 +1510,9 @@ const FloorMap = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Read-only session information panel */}
+      <SessionInfoDialog sessionId={infoSessionId} open={infoOpen} onOpenChange={(o) => { setInfoOpen(o); if (!o) setInfoSessionId(null); }} />
     </>
   );
 };

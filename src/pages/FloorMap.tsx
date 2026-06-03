@@ -734,6 +734,57 @@ const FloorMap = () => {
     load();
   };
 
+  // Close the session WITHOUT collecting payment. The session is parked in the
+  // Pending Payments queue (status = "pending_payment") and collected later.
+  // Revenue is NOT recorded here — no cash/upi/payment_method is stored.
+  const confirmPending = async () => {
+    if (!endingAsset || !endingSession) return;
+    const grossTotal = +(endGame + endItems).toFixed(2);
+    if (overrideOn) {
+      const totalPaid = +(endAmount + endAdvances).toFixed(2);
+      if (endAmount < 0) return toast.error("Override amount cannot be negative");
+      if (totalPaid > grossTotal + 0.01) return toast.error(`Override (₹${totalPaid.toFixed(2)}) cannot exceed bill ₹${grossTotal.toFixed(2)}`);
+    }
+    const effectivePaid = overrideOn ? +(endAmount + endAdvances).toFixed(2) : null;
+    const { error: updErr } = await supabase.from("sessions").update({
+      ended_at: new Date().toISOString(), status: "pending_payment",
+      game_amount: endGame, items_amount: endItems, total_amount: grossTotal,
+      override_amount: effectivePaid,
+      override_reason: overrideOn ? (overrideReason || null) : null,
+      applied_offer_id: endOfferId !== "none" ? endOfferId : null,
+      payment_method: null, cash_amount: 0, upi_amount: 0,
+    }).eq("id", endingSession.id);
+    if (updErr) return toast.error(updErr.message);
+
+    // Deduct stock for all items in chain (product is consumed regardless of payment)
+    const { data: items } = await supabase.from("session_items").select("product_id, qty").in("session_id", chainSessionIds);
+    for (const it of (items || []) as any[]) {
+      if (!it.product_id) continue;
+      const { data: p } = await supabase.from("products").select("stock").eq("id", it.product_id).single();
+      if (p) await supabase.from("products").update({ stock: Math.max(0, Number(p.stock) - Number(it.qty)) }).eq("id", it.product_id);
+    }
+
+    // Free ONLY the current owner asset (same lifecycle rule as confirmEnd).
+    await supabase.from("assets").update({ status: "available" }).eq("id", endingAsset.id);
+
+    // Smart switch OFF for the current owner asset only (best-effort)
+    {
+      const { data: freshAssets } = await supabase.from("assets")
+        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .eq("id", endingAsset.id);
+      for (const a of (freshAssets || []) as any[]) {
+        if (!a.tuya_device_id) continue;
+        const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");
+        if (!r.ok) toast.warning(`Smart switch OFF failed for ${a.name}: ${r.error}`);
+      }
+    }
+
+    toast.success(`Moved to Pending Payments: ₹${endAmount.toFixed(2)} due`);
+    setEndingAsset(null); setEndingSession(null);
+    setChainSessionIds([]); setChainAssetIds([]);
+    load();
+  };
+
   const toggleLock = async (asset: Asset) => {
     if (asset.status === "occupied") return toast.error("End session first");
     const next = asset.status === "locked" ? "available" : "locked";

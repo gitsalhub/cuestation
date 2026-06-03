@@ -946,7 +946,7 @@ const FloorMap = () => {
                           <Volume2 className="w-4 h-4" />
                         </span>
                       )}
-                      {!isAlerting(a, session) && session && a.alert_enabled && mutedAlerts[a.id] === alertTarget(a, session) && (
+                      {!isAlerting(a, session) && session && a.alert_enabled && mutedAlerts[session.id] === alertTarget(a, session) && (
                         <span role="button" tabIndex={0}
                           onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
                           className="absolute top-1 right-1 z-10 text-muted-foreground" title="Unmute alert">

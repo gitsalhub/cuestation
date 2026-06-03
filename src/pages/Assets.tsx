@@ -81,6 +81,7 @@ const Assets = () => {
     const payload: any = {
       cafe_id: cafeId, name: form.name, category: form.category,
       rate_profile_id: form.rate_profile_id || null,
+      tuya_enabled: !!form.tuya_enabled,
       tuya_device_id: form.tuya_device_id?.trim() || null,
       tuya_device_name: form.tuya_device_name?.trim() || null,
       tuya_server_url: form.tuya_server_url?.trim() || null,

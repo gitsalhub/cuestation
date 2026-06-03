@@ -1475,9 +1475,13 @@ const FloorMap = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setEndingAsset(null)}>Keep Open</Button>
+                    <Button variant="secondary" onClick={confirmPending}
+                      title="Close session now and collect payment later">
+                      Pending & Close
+                    </Button>
                     <Button onClick={confirmEnd} disabled={!payChosen}
                       className="bg-gradient-primary text-primary-foreground disabled:opacity-50">
-                      Complete Session
+                      Close &amp; Collect Payment
                     </Button>
                   </div>
                 </div>

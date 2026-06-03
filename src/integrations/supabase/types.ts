@@ -65,6 +65,7 @@ export type Database = {
           status: string
           tuya_device_id: string | null
           tuya_device_name: string | null
+          tuya_enabled: boolean
           tuya_server_url: string | null
           tuya_state: string | null
           width: number
@@ -84,6 +85,7 @@ export type Database = {
           status?: string
           tuya_device_id?: string | null
           tuya_device_name?: string | null
+          tuya_enabled?: boolean
           tuya_server_url?: string | null
           tuya_state?: string | null
           width?: number
@@ -103,6 +105,7 @@ export type Database = {
           status?: string
           tuya_device_id?: string | null
           tuya_device_name?: string | null
+          tuya_enabled?: boolean
           tuya_server_url?: string | null
           tuya_state?: string | null
           width?: number

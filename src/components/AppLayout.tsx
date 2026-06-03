@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Map, Timer, ShoppingCart, Receipt, Tag, ArrowLeftRight,
   BarChart3, Package, Boxes, DollarSign, Users, LogOut, Gamepad2, Building2,
-  ChevronLeft, ChevronRight, Calendar, Database, Palette, KeyRound
+  ChevronLeft, ChevronRight, Calendar, Database, Palette, KeyRound, Wallet
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, Theme } from "@/contexts/ThemeContext";
@@ -17,6 +17,7 @@ const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "staff", "super_admin"], perm: null },
   { to: "/floor", label: "Floor Map", icon: Map, roles: ["admin", "staff"], perm: "floor_map" as const },
   { to: "/sessions", label: "Sessions", icon: Timer, roles: ["admin", "staff"], perm: "sessions" as const },
+  { to: "/pending-payments", label: "Pending Payments", icon: Wallet, roles: ["admin", "staff"], perm: "sessions" as const },
   { to: "/bookings", label: "Bookings", icon: Calendar, roles: ["admin", "staff"], perm: "sessions" as const },
   { to: "/counter", label: "Counter Sale", icon: ShoppingCart, roles: ["admin", "staff"], perm: "counter_sale" as const },
   { to: "/expenses", label: "Expenses", icon: Receipt, roles: ["admin", "staff"], perm: "expenses" as const },

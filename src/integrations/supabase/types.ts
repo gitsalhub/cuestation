@@ -638,11 +638,14 @@ export type Database = {
           override_amount: number | null
           override_reason: string | null
           parent_session_id: string | null
+          payment_collected_at: string | null
+          payment_collected_by: string | null
           payment_method: string | null
           planned_minutes: number | null
           player_count: number
           player_segments: Json | null
           rate_profile_id: string | null
+          session_notes: string | null
           started_at: string
           started_by: string | null
           status: string
@@ -667,11 +670,14 @@ export type Database = {
           override_amount?: number | null
           override_reason?: string | null
           parent_session_id?: string | null
+          payment_collected_at?: string | null
+          payment_collected_by?: string | null
           payment_method?: string | null
           planned_minutes?: number | null
           player_count?: number
           player_segments?: Json | null
           rate_profile_id?: string | null
+          session_notes?: string | null
           started_at?: string
           started_by?: string | null
           status?: string
@@ -696,11 +702,14 @@ export type Database = {
           override_amount?: number | null
           override_reason?: string | null
           parent_session_id?: string | null
+          payment_collected_at?: string | null
+          payment_collected_by?: string | null
           payment_method?: string | null
           planned_minutes?: number | null
           player_count?: number
           player_segments?: Json | null
           rate_profile_id?: string | null
+          session_notes?: string | null
           started_at?: string
           started_by?: string | null
           status?: string

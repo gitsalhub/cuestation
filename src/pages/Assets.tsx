@@ -42,7 +42,7 @@ const Assets = () => {
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<any>({
     name: "", category: "console", rate_profile_id: "",
-    tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
+    tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
     alert_enabled: false, alert_minutes: 0,
   });
   const [confirmDel, setConfirmDel] = useState<any | null>(null);

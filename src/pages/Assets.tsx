@@ -271,25 +271,35 @@ const Assets = () => {
 
             {isAdmin && (
               <div className="border-t border-border pt-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-primary" />
-                  <Label className="text-sm font-semibold">Link smart switch (optional)</Label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <Label className="text-sm font-semibold">Enable smart switch</Label>
+                  </div>
+                  <Switch checked={!!form.tuya_enabled} onCheckedChange={(v) => setForm({ ...form, tuya_enabled: v })} />
                 </div>
                 <p className="text-[11px] text-muted-foreground -mt-2">
-                  Tuya secrets stay on the local Node server (server1.js). Here we only store the device id and a friendly name.
+                  Turn on only for assets controlled by a Tuya smart switch. Turning it off just hides these fields — saved values are kept.
                 </p>
-                <div>
-                  <Label className="text-xs">Device name</Label>
-                  <Input value={form.tuya_device_name} onChange={(e) => setForm({ ...form, tuya_device_name: e.target.value })} placeholder="e.g. Smart Plug 1" />
-                </div>
-                <div>
-                  <Label className="text-xs">Tuya device ID</Label>
-                  <Input value={form.tuya_device_id} onChange={(e) => setForm({ ...form, tuya_device_id: e.target.value })} placeholder="e.g. d72c845dc44b44912634yj" />
-                </div>
-                <div>
-                  <Label className="text-xs">Local server URL override (optional)</Label>
-                  <Input value={form.tuya_server_url} onChange={(e) => setForm({ ...form, tuya_server_url: e.target.value })} placeholder={savedGlobal || "uses global"} />
-                </div>
+                {form.tuya_enabled && (
+                  <>
+                    <p className="text-[11px] text-muted-foreground">
+                      Tuya secrets stay on the local Node server (server1.js). Here we only store the device id and a friendly name.
+                    </p>
+                    <div>
+                      <Label className="text-xs">Device name (switch code)</Label>
+                      <Input value={form.tuya_device_name} onChange={(e) => setForm({ ...form, tuya_device_name: e.target.value })} placeholder="e.g. switch_1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Tuya device ID</Label>
+                      <Input value={form.tuya_device_id} onChange={(e) => setForm({ ...form, tuya_device_id: e.target.value })} placeholder="e.g. d72c845dc44b44912634yj" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Local server URL override (optional)</Label>
+                      <Input value={form.tuya_server_url} onChange={(e) => setForm({ ...form, tuya_server_url: e.target.value })} placeholder={savedGlobal || "uses global"} />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

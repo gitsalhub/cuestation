@@ -709,15 +709,18 @@ const FloorMap = () => {
       const { data: p } = await supabase.from("products").select("stock").eq("id", it.product_id).single();
       if (p) await supabase.from("products").update({ stock: Math.max(0, Number(p.stock) - Number(it.qty)) }).eq("id", it.product_id);
     }
-    // Free all assets in chain
-    await supabase.from("assets").update({ status: "available" }).in("id", chainAssetIds);
+    // Free ONLY the current owner asset. Parent (transferred) sessions already
+    // released their source assets at transfer time — re-freeing them here would
+    // wrongly mark assets available even when a brand-new session is running on
+    // them. Transfer history is for auditing only and must not drive lifecycle.
+    await supabase.from("assets").update({ status: "available" }).eq("id", endingAsset.id);
 
-    // Smart switch OFF for every asset in the chain (best-effort)
+    // Smart switch OFF for the current owner asset only (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
         .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
-        .in("id", chainAssetIds);
-      console.log("[tuya] session_end chain", freshAssets, "globalUrl:", globalTuyaUrl);
+        .eq("id", endingAsset.id);
+      console.log("[tuya] session_end", freshAssets, "globalUrl:", globalTuyaUrl);
       for (const a of (freshAssets || []) as any[]) {
         if (!a.tuya_device_id) continue;
         const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");

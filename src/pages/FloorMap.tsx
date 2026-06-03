@@ -151,7 +151,21 @@ const FloorMap = () => {
   const [shiftTo, setShiftTo] = useState<string>("");
 
   // ── Session time alerts ──
-  const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>({});
+  // Mute state is keyed by SESSION id (not asset) and stores the target end time
+  // that was muted. Persisted to localStorage so it survives page navigation,
+  // component reloads, floor-map refresh and tab switches. A new alert event
+  // (e.g. after a session extension changes the target) is allowed because the
+  // stored target no longer matches the current target.
+  const MUTE_STORAGE_KEY = "session_alert_mutes";
+  const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(MUTE_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(MUTE_STORAGE_KEY, JSON.stringify(mutedAlerts)); } catch { /* ignore */ }
+  }, [mutedAlerts]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const beepTimerRef = useRef<any>(null);
   // Tracks which alert target we've already shown a background notification for.
@@ -165,13 +179,14 @@ const FloorMap = () => {
     if (target <= 0) return false;
     const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
     // Re-fires when extended (target grows) because the muted threshold no longer matches.
-    return elapsedMin >= target && mutedAlerts[a.id] !== target;
+    return elapsedMin >= target && mutedAlerts[session.id] !== target;
   };
   const toggleMuteAlert = (a: Asset, session?: Session | null) => {
+    if (!session) return;
     const target = alertTarget(a, session);
     setMutedAlerts((m) => {
       const next = { ...m };
-      if (next[a.id] === target) delete next[a.id]; else next[a.id] = target;
+      if (next[session.id] === target) delete next[session.id]; else next[session.id] = target;
       return next;
     });
   };
@@ -214,6 +229,17 @@ const FloorMap = () => {
     const sessList = (s || []) as any[];
     setAssets(assetList as any);
     setSessions(sessList as any);
+    // Prune mute state for sessions that are no longer active so localStorage
+    // doesn't grow unbounded (does not affect active muted alerts).
+    const activeIds = new Set(sessList.map((x: any) => x.id));
+    setMutedAlerts((m) => {
+      const next: Record<string, number> = {};
+      let changed = false;
+      for (const k of Object.keys(m)) {
+        if (activeIds.has(k)) next[k] = m[k]; else changed = true;
+      }
+      return changed ? next : m;
+    });
     setRates(((r || []) as any[]).map((x) => ({ ...x, slabs: Array.isArray(x.slabs) ? x.slabs : [] })));
     setActiveOffers((o || []) as any[]);
     const tuyaUrl = c?.tuya_server_url || "";
@@ -683,15 +709,18 @@ const FloorMap = () => {
       const { data: p } = await supabase.from("products").select("stock").eq("id", it.product_id).single();
       if (p) await supabase.from("products").update({ stock: Math.max(0, Number(p.stock) - Number(it.qty)) }).eq("id", it.product_id);
     }
-    // Free all assets in chain
-    await supabase.from("assets").update({ status: "available" }).in("id", chainAssetIds);
+    // Free ONLY the current owner asset. Parent (transferred) sessions already
+    // released their source assets at transfer time — re-freeing them here would
+    // wrongly mark assets available even when a brand-new session is running on
+    // them. Transfer history is for auditing only and must not drive lifecycle.
+    await supabase.from("assets").update({ status: "available" }).eq("id", endingAsset.id);
 
-    // Smart switch OFF for every asset in the chain (best-effort)
+    // Smart switch OFF for the current owner asset only (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
         .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
-        .in("id", chainAssetIds);
-      console.log("[tuya] session_end chain", freshAssets, "globalUrl:", globalTuyaUrl);
+        .eq("id", endingAsset.id);
+      console.log("[tuya] session_end", freshAssets, "globalUrl:", globalTuyaUrl);
       for (const a of (freshAssets || []) as any[]) {
         if (!a.tuya_device_id) continue;
         const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");
@@ -931,7 +960,7 @@ const FloorMap = () => {
                           <Volume2 className="w-4 h-4" />
                         </span>
                       )}
-                      {!isAlerting(a, session) && session && a.alert_enabled && mutedAlerts[a.id] === alertTarget(a, session) && (
+                      {!isAlerting(a, session) && session && a.alert_enabled && mutedAlerts[session.id] === alertTarget(a, session) && (
                         <span role="button" tabIndex={0}
                           onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
                           className="absolute top-1 right-1 z-10 text-muted-foreground" title="Unmute alert">

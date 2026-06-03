@@ -42,7 +42,7 @@ const Assets = () => {
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<any>({
     name: "", category: "console", rate_profile_id: "",
-    tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
+    tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
     alert_enabled: false, alert_minutes: 0,
   });
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
@@ -81,6 +81,7 @@ const Assets = () => {
     const payload: any = {
       cafe_id: cafeId, name: form.name, category: form.category,
       rate_profile_id: form.rate_profile_id || null,
+      tuya_enabled: !!form.tuya_enabled,
       tuya_device_id: form.tuya_device_id?.trim() || null,
       tuya_device_name: form.tuya_device_name?.trim() || null,
       tuya_server_url: form.tuya_server_url?.trim() || null,
@@ -148,7 +149,7 @@ const Assets = () => {
     <>
       <PageHeader title="Assets" description="Pool tables, consoles, PCs"
         actions={
-          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0 }); setOpen(true); }}
+          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0 }); setOpen(true); }}
             className="bg-gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-1" />Add asset</Button>
         } />
 
@@ -223,6 +224,7 @@ const Assets = () => {
                     setEditing(r);
                     setForm({
                       name: r.name, category: r.category, rate_profile_id: r.rate_profile_id || "",
+                      tuya_enabled: r.tuya_enabled ?? !!r.tuya_device_id,
                       tuya_device_id: r.tuya_device_id || "", tuya_device_name: r.tuya_device_name || "",
                       tuya_server_url: r.tuya_server_url || "",
                       alert_enabled: !!r.alert_enabled, alert_minutes: Number(r.alert_minutes || 0),
@@ -269,25 +271,35 @@ const Assets = () => {
 
             {isAdmin && (
               <div className="border-t border-border pt-3 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-primary" />
-                  <Label className="text-sm font-semibold">Link smart switch (optional)</Label>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <Label className="text-sm font-semibold">Enable smart switch</Label>
+                  </div>
+                  <Switch checked={!!form.tuya_enabled} onCheckedChange={(v) => setForm({ ...form, tuya_enabled: v })} />
                 </div>
                 <p className="text-[11px] text-muted-foreground -mt-2">
-                  Tuya secrets stay on the local Node server (server1.js). Here we only store the device id and a friendly name.
+                  Turn on only for assets controlled by a Tuya smart switch. Turning it off just hides these fields — saved values are kept.
                 </p>
-                <div>
-                  <Label className="text-xs">Device name</Label>
-                  <Input value={form.tuya_device_name} onChange={(e) => setForm({ ...form, tuya_device_name: e.target.value })} placeholder="e.g. Smart Plug 1" />
-                </div>
-                <div>
-                  <Label className="text-xs">Tuya device ID</Label>
-                  <Input value={form.tuya_device_id} onChange={(e) => setForm({ ...form, tuya_device_id: e.target.value })} placeholder="e.g. d72c845dc44b44912634yj" />
-                </div>
-                <div>
-                  <Label className="text-xs">Local server URL override (optional)</Label>
-                  <Input value={form.tuya_server_url} onChange={(e) => setForm({ ...form, tuya_server_url: e.target.value })} placeholder={savedGlobal || "uses global"} />
-                </div>
+                {form.tuya_enabled && (
+                  <>
+                    <p className="text-[11px] text-muted-foreground">
+                      Tuya secrets stay on the local Node server (server1.js). Here we only store the device id and a friendly name.
+                    </p>
+                    <div>
+                      <Label className="text-xs">Device name (switch code)</Label>
+                      <Input value={form.tuya_device_name} onChange={(e) => setForm({ ...form, tuya_device_name: e.target.value })} placeholder="e.g. switch_1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Tuya device ID</Label>
+                      <Input value={form.tuya_device_id} onChange={(e) => setForm({ ...form, tuya_device_id: e.target.value })} placeholder="e.g. d72c845dc44b44912634yj" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Local server URL override (optional)</Label>
+                      <Input value={form.tuya_server_url} onChange={(e) => setForm({ ...form, tuya_server_url: e.target.value })} placeholder={savedGlobal || "uses global"} />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

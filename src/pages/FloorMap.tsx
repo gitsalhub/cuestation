@@ -151,7 +151,21 @@ const FloorMap = () => {
   const [shiftTo, setShiftTo] = useState<string>("");
 
   // ── Session time alerts ──
-  const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>({});
+  // Mute state is keyed by SESSION id (not asset) and stores the target end time
+  // that was muted. Persisted to localStorage so it survives page navigation,
+  // component reloads, floor-map refresh and tab switches. A new alert event
+  // (e.g. after a session extension changes the target) is allowed because the
+  // stored target no longer matches the current target.
+  const MUTE_STORAGE_KEY = "session_alert_mutes";
+  const [mutedAlerts, setMutedAlerts] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(MUTE_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(MUTE_STORAGE_KEY, JSON.stringify(mutedAlerts)); } catch { /* ignore */ }
+  }, [mutedAlerts]);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const beepTimerRef = useRef<any>(null);
   // Tracks which alert target we've already shown a background notification for.
@@ -165,13 +179,14 @@ const FloorMap = () => {
     if (target <= 0) return false;
     const elapsedMin = (now - new Date(session.started_at).getTime()) / 60000;
     // Re-fires when extended (target grows) because the muted threshold no longer matches.
-    return elapsedMin >= target && mutedAlerts[a.id] !== target;
+    return elapsedMin >= target && mutedAlerts[session.id] !== target;
   };
   const toggleMuteAlert = (a: Asset, session?: Session | null) => {
+    if (!session) return;
     const target = alertTarget(a, session);
     setMutedAlerts((m) => {
       const next = { ...m };
-      if (next[a.id] === target) delete next[a.id]; else next[a.id] = target;
+      if (next[session.id] === target) delete next[session.id]; else next[session.id] = target;
       return next;
     });
   };

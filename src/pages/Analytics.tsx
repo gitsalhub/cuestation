@@ -363,6 +363,12 @@ const Analytics = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
       </div>
 
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Total pending</div><div className="text-xl font-bold text-orange-500">₹{pending.amount.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Not counted in revenue until collected</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Pending sessions</div><div className="text-xl font-bold">{pending.count}</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Collected pending payments</div><div className="text-xl font-bold text-success">₹{pending.collected.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Collected in this period</div></Card>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <Card className="glass-card p-5 lg:col-span-2">
           <h3 className="font-semibold mb-4">Revenue vs Expenses</h3>

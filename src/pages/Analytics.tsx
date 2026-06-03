@@ -40,6 +40,8 @@ const Analytics = () => {
   const [expenseCats, setExpenseCats] = useState<any[]>([]);
   const [allSessions, setAllSessions] = useState<any[]>([]);
   const [staffRows, setStaffRows] = useState<any[]>([]);
+  // Optional Pending Payments metrics (isolated — does not affect revenue totals).
+  const [pending, setPending] = useState({ amount: 0, count: 0, collected: 0 });
 
   useEffect(() => {
     if (!cafeId) return;
@@ -229,6 +231,36 @@ const Analytics = () => {
     });
   }, [cafeId, range, dayDate, weekAnchor, monthAnchor, customFrom, customTo]);
 
+  // Pending Payments metrics — kept separate so existing revenue logic is unchanged.
+  useEffect(() => {
+    if (!cafeId) return;
+    let since = new Date(), until = new Date();
+    if (range === "day") { since = new Date(dayDate + "T00:00:00"); until = new Date(dayDate + "T23:59:59"); }
+    else if (range === "week") { since = startOfWeek(new Date(weekAnchor + "T00:00:00")); until = new Date(since); until.setDate(until.getDate() + 6); until.setHours(23, 59, 59, 999); }
+    else if (range === "month") { const [yy, mm] = monthAnchor.split("-").map(Number); since = new Date(yy, mm - 1, 1, 0, 0, 0); until = new Date(yy, mm, 0, 23, 59, 59); }
+    else { since = new Date(customFrom + "T00:00:00"); until = new Date(customTo + "T23:59:59"); }
+    (async () => {
+      const [pendQ, collQ] = await Promise.all([
+        supabase.from("sessions").select("id, total_amount, override_amount").eq("cafe_id", cafeId).eq("status", "pending_payment"),
+        supabase.from("sessions").select("cash_amount, upi_amount").eq("cafe_id", cafeId).not("payment_collected_at", "is", null).gte("payment_collected_at", since.toISOString()).lte("payment_collected_at", until.toISOString()),
+      ]);
+      const pend = (pendQ.data || []) as any[];
+      let amount = 0;
+      if (pend.length) {
+        const ids = pend.map((p) => p.id);
+        const { data: advs } = await supabase.from("session_advances").select("session_id, amount").in("session_id", ids);
+        const am: Record<string, number> = {};
+        (advs || []).forEach((a: any) => { am[a.session_id] = (am[a.session_id] || 0) + Number(a.amount || 0); });
+        amount = pend.reduce((s, p) => {
+          const base = p.override_amount != null ? Number(p.override_amount) : Number(p.total_amount || 0);
+          return s + Math.max(0, base - (am[p.id] || 0));
+        }, 0);
+      }
+      const collected = (collQ.data || []).reduce((s: number, r: any) => s + Number(r.cash_amount || 0) + Number(r.upi_amount || 0), 0);
+      setPending({ amount, count: pend.length, collected });
+    })();
+  }, [cafeId, range, dayDate, weekAnchor, monthAnchor, customFrom, customTo]);
+
   const netProfit = totals.total - totals.expenses;
 
   const downloadCsv = () => {
@@ -329,6 +361,12 @@ const Analytics = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — discount given via override</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Advance collection</div><div className="text-xl font-bold text-accent">₹{totals.advances.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.advancesCount} advance(s) — included in cash/UPI</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Total pending</div><div className="text-xl font-bold text-orange-500">₹{pending.amount.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Not counted in revenue until collected</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Pending sessions</div><div className="text-xl font-bold">{pending.count}</div></Card>
+        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Collected pending payments</div><div className="text-xl font-bold text-success">₹{pending.collected.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Collected in this period</div></Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

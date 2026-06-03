@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import FloorMap from "./pages/FloorMap";
 import Sessions from "./pages/Sessions";
+import PendingPayments from "./pages/PendingPayments";
 import Counter from "./pages/Counter";
 import Expenses from "./pages/Expenses";
 import Offers from "./pages/Offers";
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/floor" element={<ProtectedRoute permission="floor_map"><FloorMap /></ProtectedRoute>} />
               <Route path="/sessions" element={<ProtectedRoute permission="sessions"><Sessions /></ProtectedRoute>} />
+              <Route path="/pending-payments" element={<ProtectedRoute permission="sessions"><PendingPayments /></ProtectedRoute>} />
               <Route path="/counter" element={<ProtectedRoute permission="counter_sale"><Counter /></ProtectedRoute>} />
               <Route path="/expenses" element={<ProtectedRoute permission="expenses"><Expenses /></ProtectedRoute>} />
               <Route path="/offers" element={<ProtectedRoute roles={["admin"]}><Offers /></ProtectedRoute>} />

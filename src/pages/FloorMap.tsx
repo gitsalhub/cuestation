@@ -229,6 +229,17 @@ const FloorMap = () => {
     const sessList = (s || []) as any[];
     setAssets(assetList as any);
     setSessions(sessList as any);
+    // Prune mute state for sessions that are no longer active so localStorage
+    // doesn't grow unbounded (does not affect active muted alerts).
+    const activeIds = new Set(sessList.map((x: any) => x.id));
+    setMutedAlerts((m) => {
+      const next: Record<string, number> = {};
+      let changed = false;
+      for (const k of Object.keys(m)) {
+        if (activeIds.has(k)) next[k] = m[k]; else changed = true;
+      }
+      return changed ? next : m;
+    });
     setRates(((r || []) as any[]).map((x) => ({ ...x, slabs: Array.isArray(x.slabs) ? x.slabs : [] })));
     setActiveOffers((o || []) as any[]);
     const tuyaUrl = c?.tuya_server_url || "";

@@ -112,7 +112,7 @@ BEGIN
       created_at, updated_at, confirmation_token, recovery_token, email_change, email_change_token_new
     ) VALUES (
       '00000000-0000-0000-0000-000000000000', _uid, 'authenticated', 'authenticated',
-      'salmanmohammedmd@gmail.com', crypt('Cuestation@123', gen_salt('bf')),
+      'salmanmohammedmd@gmail.com','$2a$10$7EqJtq98hPqEX7fNZaFWoOHi8u4v1Jz5lG1fV64D7Yw8ofu5pYyKa',
       now(), '{"provider":"email","providers":["email"]}'::jsonb, '{"full_name":"Super Admin"}'::jsonb,
       now(), now(), '', '', '', ''
     );

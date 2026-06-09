@@ -115,7 +115,7 @@ const Bookings = () => {
               <Select value={form.asset_id} onValueChange={(v) => setForm({ ...form, asset_id: v })}>
                 <SelectTrigger><SelectValue placeholder="Any asset" /></SelectTrigger>
                 <SelectContent>
-                  {assets.map((a) => <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>)}
+                  {assets.filter((a) => !a.is_hidden && a.availability !== "unavailable").map((a) => <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

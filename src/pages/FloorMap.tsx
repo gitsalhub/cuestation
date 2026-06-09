@@ -586,6 +586,7 @@ const FloorMap = () => {
     if (!target) return;
     if (target.id === shiftAsset.id) return toast.error("Pick a different asset");
     if (target.category !== shiftAsset.category) return toast.error("Can only shift within the same category");
+    if (target.availability === "unavailable") return toast.error("Destination asset is currently unavailable.");
     if (target.status !== "available") return toast.error("Destination asset is not available");
     const { data: { user } } = await supabase.auth.getUser();
     const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));

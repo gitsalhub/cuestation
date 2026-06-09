@@ -719,11 +719,11 @@ const FloorMap = () => {
     // Smart switch OFF for the current owner asset only (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", endingAsset.id);
       console.log("[tuya] session_end", freshAssets, "globalUrl:", globalTuyaUrl);
       for (const a of (freshAssets || []) as any[]) {
-        if (!a.tuya_device_id) continue;
+        if (a.tuya_enabled !== true || !a.tuya_device_id) continue;
         const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");
         if (!r.ok) toast.warning(`Smart switch OFF failed for ${a.name}: ${r.error}`);
       }
@@ -771,10 +771,10 @@ const FloorMap = () => {
     // Smart switch OFF for the current owner asset only (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", endingAsset.id);
       for (const a of (freshAssets || []) as any[]) {
-        if (!a.tuya_device_id) continue;
+        if (a.tuya_enabled !== true || !a.tuya_device_id) continue;
         const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");
         if (!r.ok) toast.warning(`Smart switch OFF failed for ${a.name}: ${r.error}`);
       }

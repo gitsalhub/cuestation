@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Edit2, Trash2, AlertTriangle, Power, PowerOff, Activity, Save, Zap } from "lucide-react";
+import { Plus, Edit2, Trash2, AlertTriangle, Power, PowerOff, Activity, Save, Zap, EyeOff, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { applyTuyaForAsset, tuyaSet, type TuyaState } from "@/lib/tuya";
 
@@ -44,6 +45,7 @@ const Assets = () => {
     name: "", category: "console", rate_profile_id: "",
     tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
     alert_enabled: false, alert_minutes: 0,
+    availability: "available", is_hidden: false,
   });
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [confirmReset, setConfirmReset] = useState<any | null>(null);

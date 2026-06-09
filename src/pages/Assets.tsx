@@ -112,8 +112,14 @@ const Assets = () => {
     setConfirmDel(null); load();
   };
 
+  const unhide = async (asset: any) => {
+    const { error } = await supabase.from("assets").update({ is_hidden: false }).eq("id", asset.id);
+    if (error) return toast.error(error.message);
+    toast.success("Asset unhidden");
+    load();
+  };
+
   const forceReset = async () => {
-    // (unchanged below)
     if (!confirmReset) return;
     const sid = activeSessions[confirmReset.id];
     if (!sid) { toast.info("No active session on this asset"); setConfirmReset(null); return; }

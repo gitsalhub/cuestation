@@ -250,7 +250,7 @@ const FloorMap = () => {
       reconciledRef.current = true;
       const activeAssetIds = new Set(sessList.map((x: any) => x.asset_id));
       assetList
-        .filter((as: any) => as.tuya_device_id && activeAssetIds.has(as.id) && as.tuya_state !== "on")
+        .filter((as: any) => as.tuya_enabled === true && as.tuya_device_id && activeAssetIds.has(as.id) && as.tuya_state !== "on")
         .forEach((as: any) => { applyTuyaForAsset(as, true, tuyaUrl, "reconcile"); });
     }
   };
@@ -374,10 +374,10 @@ const FloorMap = () => {
     // Smart switch ON (best-effort)
     {
       const { data: fresh } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", startAsset.id).maybeSingle();
       console.log("[tuya] session_start", fresh, "globalUrl:", globalTuyaUrl);
-      if (fresh?.tuya_device_id) {
+      if (fresh?.tuya_enabled === true && fresh?.tuya_device_id) {
         const r = await applyTuyaForAsset(fresh as any, true, globalTuyaUrl, "session_start");
         if (!r.ok) toast.warning(`Smart switch ON failed: ${r.error}`);
       } else {
@@ -554,10 +554,10 @@ const FloorMap = () => {
     });
 
     // Smart switch: OFF on source, ON on target (best-effort)
-    if (transferAsset.tuya_device_id) {
+    if (transferAsset.tuya_enabled === true && transferAsset.tuya_device_id) {
       await applyTuyaForAsset(transferAsset as any, false, globalTuyaUrl, "transfer_out");
     }
-    if (target.tuya_device_id) {
+    if (target.tuya_enabled === true && target.tuya_device_id) {
       const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "transfer_in");
       if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
     }
@@ -593,8 +593,8 @@ const FloorMap = () => {
       from_asset_id: shiftAsset.id, to_asset_id: target.id, transferred_by: user?.id,
     });
     // Smart switch OFF on source, ON on target (best-effort)
-    if (shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
-    if (target.tuya_device_id) {
+    if (shiftAsset.tuya_enabled === true && shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
+    if (target.tuya_enabled === true && target.tuya_device_id) {
       const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "shift_in");
       if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
     }

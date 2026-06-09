@@ -113,6 +113,7 @@ const Assets = () => {
   };
 
   const forceReset = async () => {
+    // (unchanged below)
     if (!confirmReset) return;
     const sid = activeSessions[confirmReset.id];
     if (!sid) { toast.info("No active session on this asset"); setConfirmReset(null); return; }

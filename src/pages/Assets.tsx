@@ -128,6 +128,7 @@ const Assets = () => {
   };
 
   const manual = async (asset: any, on: boolean) => {
+    if (asset.is_hidden) return;
     if (asset.tuya_enabled !== true) return toast.error("Smart switch is disabled for this asset");
     if (!asset.tuya_device_id) return toast.error("Asset not linked to a smart switch");
     setBusyId(asset.id);

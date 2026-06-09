@@ -111,7 +111,7 @@ const Assets = () => {
     const { error } = await supabase.rpc("force_reset_session", { _session_id: sid, _reason: "Admin emergency reset from Assets page" });
     if (error) return toast.error(error.message);
     // Best-effort OFF on the linked smart switch
-    if (confirmReset.tuya_device_id) {
+    if (confirmReset.tuya_enabled === true && confirmReset.tuya_device_id) {
       const r = await applyTuyaForAsset(confirmReset, false, savedGlobal, "force_reset");
       if (!r.ok) toast.warning(`Session reset, but smart switch OFF failed: ${r.error}`);
     }
@@ -120,6 +120,7 @@ const Assets = () => {
   };
 
   const manual = async (asset: any, on: boolean) => {
+    if (asset.tuya_enabled !== true) return toast.error("Smart switch is disabled for this asset");
     if (!asset.tuya_device_id) return toast.error("Asset not linked to a smart switch");
     setBusyId(asset.id);
     const r = await applyTuyaForAsset(asset, on, savedGlobal, "manual");
@@ -129,6 +130,7 @@ const Assets = () => {
   };
 
   const test = async (asset: any) => {
+    if (asset.tuya_enabled !== true) return toast.error("Smart switch is disabled for this asset");
     if (!asset.tuya_device_id) return toast.error("Asset not linked");
     setBusyId(asset.id);
     const r = await tuyaSet(

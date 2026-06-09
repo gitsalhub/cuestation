@@ -104,11 +104,16 @@ export async function tuyaStatus(
 
 // Persist last-known state on the asset row + log errors.
 export async function applyTuyaForAsset(
-  asset: { id: string; cafe_id: string; tuya_device_id?: string | null; tuya_device_name?: string | null; tuya_server_url?: string | null; name?: string },
+  asset: { id: string; cafe_id: string; tuya_enabled?: boolean | null; tuya_device_id?: string | null; tuya_device_name?: string | null; tuya_server_url?: string | null; name?: string },
   on: boolean,
   globalBase?: string | null,
   context?: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Master gate: the "Enable smart switch" toggle is the single source of truth.
+  // When OFF the asset behaves like a normal non-smart asset — no commands,
+  // no status checks, no Tuya/local-server calls — even if device values are
+  // still stored on the row.
+  if (asset.tuya_enabled !== true) return { ok: false, error: "smart-switch-disabled" };
   if (!asset.tuya_device_id) return { ok: false, error: "no-device" };
   const result = await tuyaSet(
     { deviceId: asset.tuya_device_id, deviceName: asset.tuya_device_name, serverUrl: asset.tuya_server_url },

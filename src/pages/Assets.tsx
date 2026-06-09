@@ -111,7 +111,7 @@ const Assets = () => {
     const { error } = await supabase.rpc("force_reset_session", { _session_id: sid, _reason: "Admin emergency reset from Assets page" });
     if (error) return toast.error(error.message);
     // Best-effort OFF on the linked smart switch
-    if (confirmReset.tuya_device_id) {
+    if (confirmReset.tuya_enabled === true && confirmReset.tuya_device_id) {
       const r = await applyTuyaForAsset(confirmReset, false, savedGlobal, "force_reset");
       if (!r.ok) toast.warning(`Session reset, but smart switch OFF failed: ${r.error}`);
     }
@@ -120,6 +120,7 @@ const Assets = () => {
   };
 
   const manual = async (asset: any, on: boolean) => {
+    if (asset.tuya_enabled !== true) return toast.error("Smart switch is disabled for this asset");
     if (!asset.tuya_device_id) return toast.error("Asset not linked to a smart switch");
     setBusyId(asset.id);
     const r = await applyTuyaForAsset(asset, on, savedGlobal, "manual");
@@ -129,6 +130,7 @@ const Assets = () => {
   };
 
   const test = async (asset: any) => {
+    if (asset.tuya_enabled !== true) return toast.error("Smart switch is disabled for this asset");
     if (!asset.tuya_device_id) return toast.error("Asset not linked");
     setBusyId(asset.id);
     const r = await tuyaSet(
@@ -189,7 +191,7 @@ const Assets = () => {
                 <td className="p-3 text-sm capitalize">{r.category}</td>
                 <td className="p-3 text-xs uppercase">{r.status}</td>
                 <td className="p-3 text-xs">
-                  {r.tuya_device_id ? (
+                  {r.tuya_enabled && r.tuya_device_id ? (
                     <div className="flex items-center gap-2">
                       <StatusDot state={r.tuya_state || "unknown"} />
                       <span className="text-muted-foreground truncate max-w-[140px]" title={r.tuya_device_id}>
@@ -197,11 +199,11 @@ const Assets = () => {
                       </span>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground/60">Not linked</span>
+                    <span className="text-muted-foreground/60">{r.tuya_device_id ? "Disabled" : "Not linked"}</span>
                   )}
                 </td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  {isAdmin && r.tuya_device_id && (
+                  {isAdmin && r.tuya_enabled && r.tuya_device_id && (
                     <>
                       <Button size="icon" variant="ghost" disabled={busyId === r.id} title="Turn ON" onClick={() => manual(r, true)}>
                         <Power className="w-3 h-3 text-success" />

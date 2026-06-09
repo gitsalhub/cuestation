@@ -295,6 +295,44 @@ const Assets = () => {
               </Select>
             </div>
 
+            <div className="border-t border-border pt-3 space-y-3">
+              <Label className="text-sm font-semibold">Asset availability</Label>
+              <RadioGroup value={form.availability} onValueChange={(v) => setForm({ ...form, availability: v })} className="gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <RadioGroupItem value="available" id="avail-available" />
+                  <span className="text-sm">Available</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <RadioGroupItem value="unavailable" id="avail-unavailable" />
+                  <span className="text-sm">Unavailable</span>
+                </label>
+              </RadioGroup>
+              <p className="text-[11px] text-muted-foreground">
+                Unavailable assets stay visible on the floor map but can't start, receive, or be selected for new sessions. Active sessions keep running.
+              </p>
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <EyeOff className="w-4 h-4 text-primary" />
+                  <Label className="text-sm font-semibold">Hide asset</Label>
+                </div>
+                <Switch
+                  checked={!!form.is_hidden}
+                  onCheckedChange={(v) => {
+                    if (v && editing && activeSessions[editing.id]) {
+                      return toast.error("Asset cannot be hidden while a session is active.");
+                    }
+                    setForm({ ...form, is_hidden: v });
+                  }}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Hidden assets are removed from the floor map and all selection lists, but stay here in Asset Management with their full history. Can't hide an asset with an active session.
+              </p>
+            </div>
+
             {isAdmin && (
               <div className="border-t border-border pt-3 space-y-3">
                 <div className="flex items-center justify-between">

@@ -22,7 +22,7 @@ const Bookings = () => {
     if (!cafeId) return;
     const [{ data: bookings, error: be }, { data: a }] = await Promise.all([
       supabase.from("bookings").select("*").eq("cafe_id", cafeId).order("booking_time", { ascending: true }),
-      supabase.from("assets").select("id, name, category").eq("cafe_id", cafeId).order("name"),
+      supabase.from("assets").select("id, name, category, availability, is_hidden").eq("cafe_id", cafeId).order("name"),
     ]);
     if (be) console.error("Bookings load error:", be);
     const assetMap = new Map((a || []).map((x: any) => [x.id, x]));

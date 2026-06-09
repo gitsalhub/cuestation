@@ -994,8 +994,12 @@ const FloorMap = () => {
                 {assets.map((a) => {
                   const session = sessions.find((s) => s.asset_id === a.id);
                   const isOccupied = a.status === "occupied" && !!session;
+                  const isUnavailable = a.availability === "unavailable";
                   const onTileClick = () => {
-                    if (a.status === "available") openStart(a);
+                    if (a.status === "available") {
+                      if (isUnavailable) return toast.error("Asset is currently unavailable.");
+                      openStart(a);
+                    }
                     else if (isOccupied) beginEnd(a);
                     else toggleLock(a);
                   };

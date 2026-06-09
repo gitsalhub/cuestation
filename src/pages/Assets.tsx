@@ -159,8 +159,7 @@ const Assets = () => {
     <>
       <PageHeader title="Assets" description="Pool tables, consoles, PCs"
         actions={
-          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0 }); setOpen(true); }}
-            // availability/hide default applied below via spread
+          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0, availability: "available", is_hidden: false }); setOpen(true); }}
             className="bg-gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-1" />Add asset</Button>
         } />
 

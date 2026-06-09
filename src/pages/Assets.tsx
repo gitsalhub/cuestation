@@ -252,6 +252,11 @@ const Assets = () => {
                       <AlertTriangle className="w-3 h-3" />
                     </Button>
                   )}
+                  {isAdmin && r.is_hidden && (
+                    <Button size="icon" variant="ghost" className="text-primary" title="Unhide asset" onClick={() => unhide(r)}>
+                      <EyeOff className="w-3 h-3" />
+                    </Button>
+                  )}
                   <Button size="icon" variant="ghost" onClick={() => {
                     setEditing(r);
                     setForm({

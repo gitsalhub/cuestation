@@ -21,6 +21,7 @@ type Asset = {
   id: string; name: string; category: string; status: string;
   rate_profile_id: string | null;
   position_x: number; position_y: number; width: number; height: number;
+  tuya_enabled?: boolean | null;
   tuya_device_id?: string | null;
   tuya_device_name?: string | null;
   tuya_server_url?: string | null;

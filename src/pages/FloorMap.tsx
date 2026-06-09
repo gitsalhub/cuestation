@@ -1015,6 +1015,11 @@ const FloorMap = () => {
                       </div>
                       <div className="font-bold text-sm truncate shrink-0">{a.name}</div>
                       <div className="text-xs text-muted-foreground capitalize mb-1 truncate shrink-0">{a.category}</div>
+                      {a.availability === "unavailable" && !isOccupied && (
+                        <span className="inline-flex items-center gap-1 self-start rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold text-warning shrink-0">
+                          <Wrench className="w-3 h-3" />Unavailable
+                        </span>
+                      )}
                       {isAlerting(a, session) && (
                         <span role="button" tabIndex={0}
                           onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}

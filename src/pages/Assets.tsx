@@ -80,6 +80,10 @@ const Assets = () => {
 
   const save = async () => {
     if (!cafeId || !form.name) return toast.error("Name required");
+    // Active sessions cannot be hidden
+    if (form.is_hidden && editing && activeSessions[editing.id]) {
+      return toast.error("Asset cannot be hidden while a session is active.");
+    }
     const payload: any = {
       cafe_id: cafeId, name: form.name, category: form.category,
       rate_profile_id: form.rate_profile_id || null,
@@ -89,6 +93,8 @@ const Assets = () => {
       tuya_server_url: form.tuya_server_url?.trim() || null,
       alert_enabled: !!form.alert_enabled,
       alert_minutes: Number(form.alert_minutes || 0),
+      availability: form.availability === "unavailable" ? "unavailable" : "available",
+      is_hidden: !!form.is_hidden,
     };
     const { error } = editing
       ? await supabase.from("assets").update(payload).eq("id", editing.id)

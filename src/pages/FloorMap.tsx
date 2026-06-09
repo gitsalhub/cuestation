@@ -893,6 +893,7 @@ const FloorMap = () => {
   };
 
   const tileClass = (a: Asset) => {
+    if (a.availability === "unavailable" && a.status !== "occupied") return "border-muted bg-muted/20 opacity-60";
     if (a.status === "locked") return "border-muted bg-muted/20 opacity-60";
     if (a.status === "available") return "border-success/50 bg-success/10 shadow-[0_0_18px_hsl(var(--success)/0.35)]";
     const session = sessions.find((s) => s.asset_id === a.id);

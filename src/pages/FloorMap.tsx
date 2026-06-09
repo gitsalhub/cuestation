@@ -1585,7 +1585,7 @@ const FloorMap = () => {
               <Label>Destination asset</Label>
               {(() => {
                 const eligible = assets.filter(
-                  (a) => a.status === "available" && a.id !== shiftAsset?.id && a.category === shiftAsset?.category,
+                  (a) => a.status === "available" && a.availability !== "unavailable" && a.id !== shiftAsset?.id && a.category === shiftAsset?.category,
                 );
                 if (eligible.length === 0) {
                   return (

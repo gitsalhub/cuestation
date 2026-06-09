@@ -53,11 +53,13 @@ export type Database = {
         Row: {
           alert_enabled: boolean
           alert_minutes: number
+          availability: string
           cafe_id: string
           category: string
           created_at: string
           height: number
           id: string
+          is_hidden: boolean
           name: string
           position_x: number | null
           position_y: number | null
@@ -73,11 +75,13 @@ export type Database = {
         Insert: {
           alert_enabled?: boolean
           alert_minutes?: number
+          availability?: string
           cafe_id: string
           category?: string
           created_at?: string
           height?: number
           id?: string
+          is_hidden?: boolean
           name: string
           position_x?: number | null
           position_y?: number | null
@@ -93,11 +97,13 @@ export type Database = {
         Update: {
           alert_enabled?: boolean
           alert_minutes?: number
+          availability?: string
           cafe_id?: string
           category?: string
           created_at?: string
           height?: number
           id?: string
+          is_hidden?: boolean
           name?: string
           position_x?: number | null
           position_y?: number | null

@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Edit2, Trash2, AlertTriangle, Power, PowerOff, Activity, Save, Zap } from "lucide-react";
+import { Plus, Edit2, Trash2, AlertTriangle, Power, PowerOff, Activity, Save, Zap, EyeOff, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { applyTuyaForAsset, tuyaSet, type TuyaState } from "@/lib/tuya";
 
@@ -44,6 +45,7 @@ const Assets = () => {
     name: "", category: "console", rate_profile_id: "",
     tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "",
     alert_enabled: false, alert_minutes: 0,
+    availability: "available", is_hidden: false,
   });
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [confirmReset, setConfirmReset] = useState<any | null>(null);
@@ -78,6 +80,10 @@ const Assets = () => {
 
   const save = async () => {
     if (!cafeId || !form.name) return toast.error("Name required");
+    // Active sessions cannot be hidden
+    if (form.is_hidden && editing && activeSessions[editing.id]) {
+      return toast.error("Asset cannot be hidden while a session is active.");
+    }
     const payload: any = {
       cafe_id: cafeId, name: form.name, category: form.category,
       rate_profile_id: form.rate_profile_id || null,
@@ -87,6 +93,8 @@ const Assets = () => {
       tuya_server_url: form.tuya_server_url?.trim() || null,
       alert_enabled: !!form.alert_enabled,
       alert_minutes: Number(form.alert_minutes || 0),
+      availability: form.availability === "unavailable" ? "unavailable" : "available",
+      is_hidden: !!form.is_hidden,
     };
     const { error } = editing
       ? await supabase.from("assets").update(payload).eq("id", editing.id)
@@ -102,6 +110,13 @@ const Assets = () => {
     if (error) return toast.error(error.message);
     toast.success("Asset deleted");
     setConfirmDel(null); load();
+  };
+
+  const unhide = async (asset: any) => {
+    const { error } = await supabase.from("assets").update({ is_hidden: false }).eq("id", asset.id);
+    if (error) return toast.error(error.message);
+    toast.success("Asset unhidden");
+    load();
   };
 
   const forceReset = async () => {
@@ -120,6 +135,7 @@ const Assets = () => {
   };
 
   const manual = async (asset: any, on: boolean) => {
+    if (asset.is_hidden) return;
     if (asset.tuya_enabled !== true) return toast.error("Smart switch is disabled for this asset");
     if (!asset.tuya_device_id) return toast.error("Asset not linked to a smart switch");
     setBusyId(asset.id);
@@ -151,7 +167,7 @@ const Assets = () => {
     <>
       <PageHeader title="Assets" description="Pool tables, consoles, PCs"
         actions={
-          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0 }); setOpen(true); }}
+          <Button onClick={() => { setEditing(null); setForm({ name: "", category: "console", rate_profile_id: "", tuya_enabled: false, tuya_device_id: "", tuya_device_name: "", tuya_server_url: "", alert_enabled: false, alert_minutes: 0, availability: "available", is_hidden: false }); setOpen(true); }}
             className="bg-gradient-primary text-primary-foreground"><Plus className="w-4 h-4 mr-1" />Add asset</Button>
         } />
 
@@ -187,7 +203,21 @@ const Assets = () => {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20">
-                <td className="p-3 text-sm">{r.name}</td>
+                <td className="p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className={r.is_hidden ? "text-muted-foreground" : ""}>{r.name}</span>
+                    {r.is_hidden && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        <EyeOff className="w-3 h-3" />Hidden
+                      </span>
+                    )}
+                    {!r.is_hidden && r.availability === "unavailable" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                        <Wrench className="w-3 h-3" />Unavailable
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="p-3 text-sm capitalize">{r.category}</td>
                 <td className="p-3 text-xs uppercase">{r.status}</td>
                 <td className="p-3 text-xs">
@@ -222,6 +252,11 @@ const Assets = () => {
                       <AlertTriangle className="w-3 h-3" />
                     </Button>
                   )}
+                  {isAdmin && r.is_hidden && (
+                    <Button size="icon" variant="ghost" className="text-primary" title="Unhide asset" onClick={() => unhide(r)}>
+                      <EyeOff className="w-3 h-3" />
+                    </Button>
+                  )}
                   <Button size="icon" variant="ghost" onClick={() => {
                     setEditing(r);
                     setForm({
@@ -230,6 +265,8 @@ const Assets = () => {
                       tuya_device_id: r.tuya_device_id || "", tuya_device_name: r.tuya_device_name || "",
                       tuya_server_url: r.tuya_server_url || "",
                       alert_enabled: !!r.alert_enabled, alert_minutes: Number(r.alert_minutes || 0),
+                      availability: r.availability === "unavailable" ? "unavailable" : "available",
+                      is_hidden: !!r.is_hidden,
                     });
                     setOpen(true);
                   }}><Edit2 className="w-3 h-3" /></Button>
@@ -269,6 +306,44 @@ const Assets = () => {
                   {rates.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-3">
+              <Label className="text-sm font-semibold">Asset availability</Label>
+              <RadioGroup value={form.availability} onValueChange={(v) => setForm({ ...form, availability: v })} className="gap-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <RadioGroupItem value="available" id="avail-available" />
+                  <span className="text-sm">Available</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <RadioGroupItem value="unavailable" id="avail-unavailable" />
+                  <span className="text-sm">Unavailable</span>
+                </label>
+              </RadioGroup>
+              <p className="text-[11px] text-muted-foreground">
+                Unavailable assets stay visible on the floor map but can't start, receive, or be selected for new sessions. Active sessions keep running.
+              </p>
+            </div>
+
+            <div className="border-t border-border pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <EyeOff className="w-4 h-4 text-primary" />
+                  <Label className="text-sm font-semibold">Hide asset</Label>
+                </div>
+                <Switch
+                  checked={!!form.is_hidden}
+                  onCheckedChange={(v) => {
+                    if (v && editing && activeSessions[editing.id]) {
+                      return toast.error("Asset cannot be hidden while a session is active.");
+                    }
+                    setForm({ ...form, is_hidden: v });
+                  }}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Hidden assets are removed from the floor map and all selection lists, but stay here in Asset Management with their full history. Can't hide an asset with an active session.
+              </p>
             </div>
 
             {isAdmin && (

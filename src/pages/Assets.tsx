@@ -238,6 +238,8 @@ const Assets = () => {
                       tuya_device_id: r.tuya_device_id || "", tuya_device_name: r.tuya_device_name || "",
                       tuya_server_url: r.tuya_server_url || "",
                       alert_enabled: !!r.alert_enabled, alert_minutes: Number(r.alert_minutes || 0),
+                      availability: r.availability === "unavailable" ? "unavailable" : "available",
+                      is_hidden: !!r.is_hidden,
                     });
                     setOpen(true);
                   }}><Edit2 className="w-3 h-3" /></Button>

@@ -228,7 +228,9 @@ const FloorMap = () => {
       supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes, conditions").eq("cafe_id", cafeId).eq("active", true),
       supabase.from("cafes").select("tuya_server_url").eq("id", cafeId).maybeSingle(),
     ]);
-    const assetList = (a || []) as any[];
+    // Hidden assets are excluded everywhere operationally (floor map, selection
+    // lists, transfers). They remain in the database and in Asset Management.
+    const assetList = ((a || []) as any[]).filter((x: any) => !x.is_hidden);
     const sessList = (s || []) as any[];
     setAssets(assetList as any);
     setSessions(sessList as any);

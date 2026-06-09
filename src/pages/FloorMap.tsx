@@ -363,6 +363,7 @@ const FloorMap = () => {
 
   const startSession = async () => {
     if (!startAsset || !cafeId) return;
+    if (startAsset.availability === "unavailable") return toast.error("Asset is currently unavailable.");
     const { data: { user } } = await supabase.auth.getUser();
     const sel = DURATIONS.find((d) => d.label === durationLabel);
     let planned: number | null = sel?.minutes ?? null;

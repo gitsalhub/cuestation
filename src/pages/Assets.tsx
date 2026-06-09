@@ -105,7 +105,6 @@ const Assets = () => {
   };
 
   const del = async () => {
-    // intentionally unchanged
     if (!confirmDel) return;
     const { error } = await supabase.rpc("force_delete_asset", { _asset_id: confirmDel.id });
     if (error) return toast.error(error.message);

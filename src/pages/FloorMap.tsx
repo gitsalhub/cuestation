@@ -525,6 +525,7 @@ const FloorMap = () => {
     if (!transferAsset || !transferSession || !transferTo || !cafeId) return;
     const target = assets.find((x) => x.id === transferTo);
     if (!target) return;
+    if (target.availability === "unavailable") return toast.error("Destination asset is currently unavailable.");
     const { data: { user } } = await supabase.auth.getUser();
     const sel = DURATIONS.find((d) => d.label === transferDuration);
     let planned: number | null = sel?.minutes ?? null;

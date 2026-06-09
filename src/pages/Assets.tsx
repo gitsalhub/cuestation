@@ -195,7 +195,21 @@ const Assets = () => {
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20">
-                <td className="p-3 text-sm">{r.name}</td>
+                <td className="p-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className={r.is_hidden ? "text-muted-foreground" : ""}>{r.name}</span>
+                    {r.is_hidden && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        <EyeOff className="w-3 h-3" />Hidden
+                      </span>
+                    )}
+                    {!r.is_hidden && r.availability === "unavailable" && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                        <Wrench className="w-3 h-3" />Unavailable
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="p-3 text-sm capitalize">{r.category}</td>
                 <td className="p-3 text-xs uppercase">{r.status}</td>
                 <td className="p-3 text-xs">

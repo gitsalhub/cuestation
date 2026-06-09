@@ -191,7 +191,7 @@ const Assets = () => {
                 <td className="p-3 text-sm capitalize">{r.category}</td>
                 <td className="p-3 text-xs uppercase">{r.status}</td>
                 <td className="p-3 text-xs">
-                  {r.tuya_device_id ? (
+                  {r.tuya_enabled && r.tuya_device_id ? (
                     <div className="flex items-center gap-2">
                       <StatusDot state={r.tuya_state || "unknown"} />
                       <span className="text-muted-foreground truncate max-w-[140px]" title={r.tuya_device_id}>
@@ -199,11 +199,11 @@ const Assets = () => {
                       </span>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground/60">Not linked</span>
+                    <span className="text-muted-foreground/60">{r.tuya_device_id ? "Disabled" : "Not linked"}</span>
                   )}
                 </td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  {isAdmin && r.tuya_device_id && (
+                  {isAdmin && r.tuya_enabled && r.tuya_device_id && (
                     <>
                       <Button size="icon" variant="ghost" disabled={busyId === r.id} title="Turn ON" onClick={() => manual(r, true)}>
                         <Power className="w-3 h-3 text-success" />

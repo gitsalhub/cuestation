@@ -1213,7 +1213,7 @@ const FloorMap = () => {
               <Select value={transferTo} onValueChange={setTransferTo}>
                 <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
                 <SelectContent>
-                  {assets.filter((a) => a.status === "available" && a.id !== transferAsset?.id).map((a) => (
+                  {assets.filter((a) => a.status === "available" && a.availability !== "unavailable" && a.id !== transferAsset?.id).map((a) => (
                     <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
                   ))}
                 </SelectContent>

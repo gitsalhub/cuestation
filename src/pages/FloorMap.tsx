@@ -23,6 +23,8 @@ type Asset = {
   position_x: number; position_y: number; width: number; height: number;
   tuya_enabled?: boolean | null;
   tuya_device_id?: string | null;
+  availability?: string | null;
+  is_hidden?: boolean | null;
   tuya_device_name?: string | null;
   tuya_server_url?: string | null;
   tuya_state?: string | null;

@@ -5,12 +5,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { CashDrawerProvider } from "@/contexts/CashDrawerContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import FloorMap from "./pages/FloorMap";
 import Sessions from "./pages/Sessions";
 import PendingPayments from "./pages/PendingPayments";
+import CashDrawer from "./pages/CashDrawer";
 import Counter from "./pages/Counter";
 import Expenses from "./pages/Expenses";
 import Offers from "./pages/Offers";
@@ -35,6 +37,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <CashDrawerProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -50,11 +53,13 @@ const App = () => (
               <Route path="/rates" element={<ProtectedRoute roles={["admin"]}><Rates /></ProtectedRoute>} />
               <Route path="/staff" element={<ProtectedRoute roles={["admin"]}><Staff /></ProtectedRoute>} />
               <Route path="/analytics" element={<ProtectedRoute roles={["admin"]}><Analytics /></ProtectedRoute>} />
+              <Route path="/cash-drawer" element={<ProtectedRoute roles={["admin"]}><CashDrawer /></ProtectedRoute>} />
               <Route path="/bookings" element={<ProtectedRoute permission="sessions"><Bookings /></ProtectedRoute>} />
               <Route path="/cafes" element={<ProtectedRoute roles={["super_admin"]}><Cafes /></ProtectedRoute>} />
               <Route path="/db-browser" element={<ProtectedRoute roles={["super_admin"]}><DbBrowser /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </CashDrawerProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

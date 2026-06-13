@@ -329,6 +329,57 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_drawer_shifts: {
+        Row: {
+          cafe_id: string
+          closed_at: string | null
+          closing_cash: number | null
+          closing_notes: string | null
+          created_at: string
+          id: string
+          opened_at: string
+          opening_cash: number
+          opening_notes: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          user_name: string | null
+          user_role: string | null
+        }
+        Insert: {
+          cafe_id: string
+          closed_at?: string | null
+          closing_cash?: number | null
+          closing_notes?: string | null
+          created_at?: string
+          id?: string
+          opened_at?: string
+          opening_cash?: number
+          opening_notes?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          user_name?: string | null
+          user_role?: string | null
+        }
+        Update: {
+          cafe_id?: string
+          closed_at?: string | null
+          closing_cash?: number | null
+          closing_notes?: string | null
+          created_at?: string
+          id?: string
+          opened_at?: string
+          opening_cash?: number
+          opening_notes?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          user_name?: string | null
+          user_role?: string | null
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number

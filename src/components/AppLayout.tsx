@@ -37,6 +37,7 @@ const navItems = [
 const AppLayout = ({ children }: { children: ReactNode }) => {
   const { role, permissions, user, cafeId, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { requestSignOut } = useCashDrawer();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "1");
   const [cafeName, setCafeName] = useState<string>("");
@@ -135,7 +136,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           <Button variant="ghost" size={collapsed ? "icon" : "default"}
             className={cn("text-sidebar-foreground", collapsed ? "w-full" : "w-full justify-start")}
             title={collapsed ? "Sign out" : undefined}
-            onClick={async () => { await signOut(); navigate("/auth"); }}>
+            onClick={() => requestSignOut()}>
             <LogOut className="w-4 h-4" />
             {!collapsed && <span className="ml-2">Sign out</span>}
           </Button>

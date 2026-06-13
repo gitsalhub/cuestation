@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, Theme } from "@/contexts/ThemeContext";
+import { useCashDrawer } from "@/contexts/CashDrawerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +29,7 @@ const navItems = [
   { to: "/rates", label: "Rate Profiles", icon: DollarSign, roles: ["admin"], perm: null },
   { to: "/staff", label: "Staff", icon: Users, roles: ["admin"], perm: null },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["admin"], perm: null },
+  { to: "/cash-drawer", label: "Cash Drawer", icon: Wallet, roles: ["admin"], perm: null },
   { to: "/cafes", label: "Cafes", icon: Building2, roles: ["super_admin"], perm: null },
   { to: "/db-browser", label: "DB Browser", icon: Database, roles: ["super_admin"], perm: null },
 ];

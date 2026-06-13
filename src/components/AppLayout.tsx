@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Map, Timer, ShoppingCart, Receipt, Tag, ArrowLeftRight,
   BarChart3, Package, Boxes, DollarSign, Users, LogOut, Gamepad2, Building2,
@@ -35,10 +35,9 @@ const navItems = [
 ];
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
-  const { role, permissions, user, cafeId, signOut } = useAuth();
+  const { role, permissions, user, cafeId } = useAuth();
   const { theme, setTheme } = useTheme();
   const { requestSignOut } = useCashDrawer();
-  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "1");
   const [cafeName, setCafeName] = useState<string>("");
   const [pwdOpen, setPwdOpen] = useState(false);

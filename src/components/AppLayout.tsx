@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Map, Timer, ShoppingCart, Receipt, Tag, ArrowLeftRight,
   BarChart3, Package, Boxes, DollarSign, Users, LogOut, Gamepad2, Building2,
@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme, Theme } from "@/contexts/ThemeContext";
+import { useCashDrawer } from "@/contexts/CashDrawerContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,14 +29,15 @@ const navItems = [
   { to: "/rates", label: "Rate Profiles", icon: DollarSign, roles: ["admin"], perm: null },
   { to: "/staff", label: "Staff", icon: Users, roles: ["admin"], perm: null },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["admin"], perm: null },
+  { to: "/cash-drawer", label: "Cash Drawer", icon: Wallet, roles: ["admin"], perm: null },
   { to: "/cafes", label: "Cafes", icon: Building2, roles: ["super_admin"], perm: null },
   { to: "/db-browser", label: "DB Browser", icon: Database, roles: ["super_admin"], perm: null },
 ];
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
-  const { role, permissions, user, cafeId, signOut } = useAuth();
+  const { role, permissions, user, cafeId } = useAuth();
   const { theme, setTheme } = useTheme();
-  const navigate = useNavigate();
+  const { requestSignOut } = useCashDrawer();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "1");
   const [cafeName, setCafeName] = useState<string>("");
   const [pwdOpen, setPwdOpen] = useState(false);
@@ -133,7 +135,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           <Button variant="ghost" size={collapsed ? "icon" : "default"}
             className={cn("text-sidebar-foreground", collapsed ? "w-full" : "w-full justify-start")}
             title={collapsed ? "Sign out" : undefined}
-            onClick={async () => { await signOut(); navigate("/auth"); }}>
+            onClick={() => requestSignOut()}>
             <LogOut className="w-4 h-4" />
             {!collapsed && <span className="ml-2">Sign out</span>}
           </Button>

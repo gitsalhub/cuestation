@@ -38,6 +38,8 @@ const Analytics = () => {
   const [productRows, setProductRows] = useState<any[]>([]);
   const [totals, setTotals] = useState({ gaming: 0, productSale: 0, total: 0, cash: 0, upi: 0, expenses: 0, overrides: 0, overridesCount: 0, advances: 0, advancesCount: 0 });
   const [expenseCats, setExpenseCats] = useState<any[]>([]);
+  const [expenseList, setExpenseList] = useState<any[]>([]);
+  const [expensesOpen, setExpensesOpen] = useState(false);
   const [allSessions, setAllSessions] = useState<any[]>([]);
   const [staffRows, setStaffRows] = useState<any[]>([]);
   // Optional Pending Payments metrics (isolated — does not affect revenue totals).

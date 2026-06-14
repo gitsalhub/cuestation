@@ -5,7 +5,7 @@ import {
   BarChart3, Package, Boxes, DollarSign, Users, LogOut, Gamepad2, Building2,
   ChevronLeft, ChevronRight, Calendar, Database, Palette, KeyRound, Wallet
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, hasPermission } from "@/contexts/AuthContext";
 import { useTheme, Theme } from "@/contexts/ThemeContext";
 import { useCashDrawer } from "@/contexts/CashDrawerContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,12 +18,12 @@ const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "staff", "super_admin"], perm: null },
   { to: "/floor", label: "Floor Map", icon: Map, roles: ["admin", "staff"], perm: "floor_map" as const },
   { to: "/sessions", label: "Sessions", icon: Timer, roles: ["admin", "staff"], perm: "sessions" as const },
-  { to: "/pending-payments", label: "Pending Payments", icon: Wallet, roles: ["admin", "staff"], perm: "sessions" as const },
-  { to: "/bookings", label: "Bookings", icon: Calendar, roles: ["admin", "staff"], perm: "sessions" as const },
+  { to: "/pending-payments", label: "Pending Payments", icon: Wallet, roles: ["admin", "staff"], perm: "pending_payments" as const },
+  { to: "/bookings", label: "Bookings", icon: Calendar, roles: ["admin", "staff"], perm: "bookings" as const },
   { to: "/counter", label: "Counter Sale", icon: ShoppingCart, roles: ["admin", "staff"], perm: "counter_sale" as const },
   { to: "/expenses", label: "Expenses", icon: Receipt, roles: ["admin", "staff"], perm: "expenses" as const },
   { to: "/offers", label: "Offers", icon: Tag, roles: ["admin"], perm: null },
-  { to: "/transfers", label: "Transfers", icon: ArrowLeftRight, roles: ["admin", "staff"], perm: "sessions" as const },
+  { to: "/transfers", label: "Transfers", icon: ArrowLeftRight, roles: ["admin", "staff"], perm: "transfers" as const },
   { to: "/products", label: "Products", icon: Package, roles: ["admin"], perm: null },
   { to: "/assets", label: "Assets", icon: Boxes, roles: ["admin"], perm: null },
   { to: "/rates", label: "Rate Profiles", icon: DollarSign, roles: ["admin"], perm: null },
@@ -61,7 +61,7 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
 
   const items = navItems.filter((it) => {
     if (!role || !it.roles.includes(role)) return false;
-    if (role === "staff" && it.perm && !permissions[it.perm]) return false;
+    if (role === "staff" && it.perm && !hasPermission(permissions, it.perm)) return false;
     return true;
   });
 

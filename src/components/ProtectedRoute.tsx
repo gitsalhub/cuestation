@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth, AppRole, StaffPermissions } from "@/contexts/AuthContext";
+import { useAuth, AppRole, StaffPermissions, hasPermission } from "@/contexts/AuthContext";
 import AppLayout from "./AppLayout";
 
 interface Props {
@@ -45,7 +45,7 @@ const ProtectedRoute = ({ children, roles, permission }: Props) => {
   }
 
   if (roles && role && !roles.includes(role)) return <Navigate to="/" replace />;
-  if (permission && role === "staff" && !permissions[permission]) return <Navigate to="/" replace />;
+  if (permission && role === "staff" && !hasPermission(permissions, permission)) return <Navigate to="/" replace />;
 
   return <AppLayout>{children}</AppLayout>;
 };

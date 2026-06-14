@@ -14,8 +14,11 @@ import { toast } from "sonner";
 const PERMS = [
   { key: "floor_map", label: "Floor Map" },
   { key: "sessions", label: "Sessions" },
+  { key: "pending_payments", label: "Pending Payments" },
+  { key: "bookings", label: "Bookings" },
   { key: "counter_sale", label: "Counter Sale" },
   { key: "expenses", label: "Expenses" },
+  { key: "transfers", label: "Transfers" },
   { key: "bill_override", label: "Bill Override" },
 ] as const;
 

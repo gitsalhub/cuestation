@@ -187,6 +187,7 @@ const Analytics = () => {
       const ec: Record<string, number> = {};
       expenses.forEach((x) => { ec[x.category || "general"] = (ec[x.category || "general"] || 0) + Number(x.amount || 0); });
       setExpenseCats(Object.entries(ec).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount));
+      setExpenseList([...expenses].sort((a, b) => (b.expense_date || "").localeCompare(a.expense_date || "")));
 
       setTotals({ gaming, productSale, total, cash, upi, expenses: expensesTotal, overrides, overridesCount, advances: advancesTotal, advancesCount });
 

@@ -364,8 +364,46 @@ const Analytics = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">UPI</div><div className="text-xl font-bold">₹{totals.upi.toFixed(2)}</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — discount given via override</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Advance collection</div><div className="text-xl font-bold text-accent">₹{totals.advances.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.advancesCount} advance(s) — included in cash/UPI</div></Card>
-        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
+        <Card
+          className="glass-card p-4 cursor-pointer transition-shadow hover:shadow-lg hover:ring-1 hover:ring-destructive/40"
+          onClick={() => setExpensesOpen(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setExpensesOpen(true); } }}
+        >
+          <div className="text-xs text-muted-foreground">Expenses</div>
+          <div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div>
+          <div className="text-[10px] text-muted-foreground">Click to view details</div>
+        </Card>
       </div>
+
+      <Dialog open={expensesOpen} onOpenChange={setExpensesOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Expense details</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">{expenseList.length} entr{expenseList.length === 1 ? "y" : "ies"} · {rangeLabel}</span>
+            <span className="font-bold text-destructive">₹{totals.expenses.toFixed(2)}</span>
+          </div>
+          {expenseList.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No expenses recorded in this period.</p>
+          ) : (
+            <div className="max-h-[60vh] overflow-auto divide-y divide-border">
+              {expenseList.map((e) => (
+                <div key={e.id} className="flex items-start justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <div className="font-medium capitalize">{e.category || "general"}</div>
+                    {e.note && <div className="text-xs text-muted-foreground break-words">{e.note}</div>}
+                    <div className="text-[10px] text-muted-foreground">{e.expense_date}</div>
+                  </div>
+                  <div className="font-mono text-destructive whitespace-nowrap">₹{Number(e.amount).toFixed(2)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Total pending</div><div className="text-xl font-bold text-orange-500">₹{pending.amount.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Not counted in revenue until collected</div></Card>

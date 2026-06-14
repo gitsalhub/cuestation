@@ -15,21 +15,21 @@ import { cn } from "@/lib/utils";
 import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 
 const navItems = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "staff", "super_admin"], perm: null },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "staff", "super_admin"], perm: "dashboard" as const },
   { to: "/floor", label: "Floor Map", icon: Map, roles: ["admin", "staff"], perm: "floor_map" as const },
   { to: "/sessions", label: "Sessions", icon: Timer, roles: ["admin", "staff"], perm: "sessions" as const },
   { to: "/pending-payments", label: "Pending Payments", icon: Wallet, roles: ["admin", "staff"], perm: "pending_payments" as const },
   { to: "/bookings", label: "Bookings", icon: Calendar, roles: ["admin", "staff"], perm: "bookings" as const },
   { to: "/counter", label: "Counter Sale", icon: ShoppingCart, roles: ["admin", "staff"], perm: "counter_sale" as const },
   { to: "/expenses", label: "Expenses", icon: Receipt, roles: ["admin", "staff"], perm: "expenses" as const },
-  { to: "/offers", label: "Offers", icon: Tag, roles: ["admin"], perm: null },
+  { to: "/offers", label: "Offers", icon: Tag, roles: ["admin", "staff"], perm: "offers" as const },
   { to: "/transfers", label: "Transfers", icon: ArrowLeftRight, roles: ["admin", "staff"], perm: "transfers" as const },
-  { to: "/products", label: "Products", icon: Package, roles: ["admin"], perm: null },
-  { to: "/assets", label: "Assets", icon: Boxes, roles: ["admin"], perm: null },
-  { to: "/rates", label: "Rate Profiles", icon: DollarSign, roles: ["admin"], perm: null },
+  { to: "/products", label: "Products", icon: Package, roles: ["admin", "staff"], perm: "products" as const },
+  { to: "/assets", label: "Assets", icon: Boxes, roles: ["admin", "staff"], perm: "assets" as const },
+  { to: "/rates", label: "Rate Profiles", icon: DollarSign, roles: ["admin", "staff"], perm: "rate_profiles" as const },
   { to: "/staff", label: "Staff", icon: Users, roles: ["admin"], perm: null },
-  { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["admin"], perm: null },
-  { to: "/cash-drawer", label: "Cash Drawer", icon: Wallet, roles: ["admin"], perm: null },
+  { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["admin", "staff"], perm: "analytics" as const },
+  { to: "/cash-drawer", label: "Cash Drawer", icon: Wallet, roles: ["admin", "staff"], perm: "cash_drawer" as const },
   { to: "/cafes", label: "Cafes", icon: Building2, roles: ["super_admin"], perm: null },
   { to: "/db-browser", label: "DB Browser", icon: Database, roles: ["super_admin"], perm: null },
 ];

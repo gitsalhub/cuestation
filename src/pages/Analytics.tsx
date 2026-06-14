@@ -68,7 +68,7 @@ const Analytics = () => {
     // Only completed sessions contribute to revenue.
     const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).eq("status", "completed").gte("ended_at", sinceIso).lte("ended_at", untilIso);
     const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
-    const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
+    const expQ = supabase.from("expenses").select("id, amount, category, note, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
     Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
       const sessions = (s.data || []) as any[];
       const bills = (b.data || []) as any[];

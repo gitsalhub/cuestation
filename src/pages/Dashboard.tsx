@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import PageHeader from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
-import { Timer, DollarSign, Receipt, Activity } from "lucide-react";
+import { Timer, DollarSign, Receipt, Activity, Banknote, Smartphone } from "lucide-react";
 
 const Dashboard = () => {
   const { cafeId, role } = useAuth();

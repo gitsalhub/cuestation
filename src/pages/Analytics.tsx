@@ -5,6 +5,7 @@ import PageHeader from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from "recharts";
 import { Download } from "lucide-react";
 
@@ -38,6 +39,8 @@ const Analytics = () => {
   const [productRows, setProductRows] = useState<any[]>([]);
   const [totals, setTotals] = useState({ gaming: 0, productSale: 0, total: 0, cash: 0, upi: 0, expenses: 0, overrides: 0, overridesCount: 0, advances: 0, advancesCount: 0 });
   const [expenseCats, setExpenseCats] = useState<any[]>([]);
+  const [expenseList, setExpenseList] = useState<any[]>([]);
+  const [expensesOpen, setExpensesOpen] = useState(false);
   const [allSessions, setAllSessions] = useState<any[]>([]);
   const [staffRows, setStaffRows] = useState<any[]>([]);
   // Optional Pending Payments metrics (isolated — does not affect revenue totals).
@@ -68,7 +71,7 @@ const Analytics = () => {
     // Only completed sessions contribute to revenue.
     const sessQ = supabase.from("sessions").select("id, created_at, game_amount, items_amount, total_amount, cash_amount, upi_amount, payment_method, asset_id, customer_name, started_at, ended_at, override_amount, override_reason, discount_amount, status, started_by, assets(name)").eq("cafe_id", cafeId).eq("status", "completed").gte("ended_at", sinceIso).lte("ended_at", untilIso);
     const billsQ = supabase.from("bills").select("id, created_at, total, subtotal, cash_amount, upi_amount, payment_method, override_amount, discount, created_by").eq("cafe_id", cafeId).gte("created_at", sinceIso).lte("created_at", untilIso);
-    const expQ = supabase.from("expenses").select("amount, category, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
+    const expQ = supabase.from("expenses").select("id, amount, category, note, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
     Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
       const sessions = (s.data || []) as any[];
       const bills = (b.data || []) as any[];
@@ -185,6 +188,7 @@ const Analytics = () => {
       const ec: Record<string, number> = {};
       expenses.forEach((x) => { ec[x.category || "general"] = (ec[x.category || "general"] || 0) + Number(x.amount || 0); });
       setExpenseCats(Object.entries(ec).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount));
+      setExpenseList([...expenses].sort((a, b) => (b.expense_date || "").localeCompare(a.expense_date || "")));
 
       setTotals({ gaming, productSale, total, cash, upi, expenses: expensesTotal, overrides, overridesCount, advances: advancesTotal, advancesCount });
 
@@ -360,8 +364,46 @@ const Analytics = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">UPI</div><div className="text-xl font-bold">₹{totals.upi.toFixed(2)}</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Overrides</div><div className="text-xl font-bold text-orange-500">₹{totals.overrides.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.overridesCount} record(s) — discount given via override</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Advance collection</div><div className="text-xl font-bold text-accent">₹{totals.advances.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">{totals.advancesCount} advance(s) — included in cash/UPI</div></Card>
-        <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expenses</div><div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div></Card>
+        <Card
+          className="glass-card p-4 cursor-pointer transition-shadow hover:shadow-lg hover:ring-1 hover:ring-destructive/40"
+          onClick={() => setExpensesOpen(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setExpensesOpen(true); } }}
+        >
+          <div className="text-xs text-muted-foreground">Expenses</div>
+          <div className="text-xl font-bold text-destructive">₹{totals.expenses.toFixed(2)}</div>
+          <div className="text-[10px] text-muted-foreground">Click to view details</div>
+        </Card>
       </div>
+
+      <Dialog open={expensesOpen} onOpenChange={setExpensesOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Expense details</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">{expenseList.length} entr{expenseList.length === 1 ? "y" : "ies"} · {rangeLabel}</span>
+            <span className="font-bold text-destructive">₹{totals.expenses.toFixed(2)}</span>
+          </div>
+          {expenseList.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No expenses recorded in this period.</p>
+          ) : (
+            <div className="max-h-[60vh] overflow-auto divide-y divide-border">
+              {expenseList.map((e) => (
+                <div key={e.id} className="flex items-start justify-between gap-3 py-3">
+                  <div className="min-w-0">
+                    <div className="font-medium capitalize">{e.category || "general"}</div>
+                    {e.note && <div className="text-xs text-muted-foreground break-words">{e.note}</div>}
+                    <div className="text-[10px] text-muted-foreground">{e.expense_date}</div>
+                  </div>
+                  <div className="font-mono text-destructive whitespace-nowrap">₹{Number(e.amount).toFixed(2)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Total pending</div><div className="text-xl font-bold text-orange-500">₹{pending.amount.toFixed(2)}</div><div className="text-[10px] text-muted-foreground">Not counted in revenue until collected</div></Card>

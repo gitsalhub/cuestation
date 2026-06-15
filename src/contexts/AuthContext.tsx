@@ -4,11 +4,45 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type AppRole = "super_admin" | "admin" | "staff";
 export type StaffPermissions = {
+  dashboard?: boolean;
   floor_map?: boolean;
   sessions?: boolean;
+  pending_payments?: boolean;
+  bookings?: boolean;
+  transfers?: boolean;
   counter_sale?: boolean;
   expenses?: boolean;
+  offers?: boolean;
+  products?: boolean;
+  assets?: boolean;
+  rate_profiles?: boolean;
+  analytics?: boolean;
+  cash_drawer?: boolean;
   bill_override?: boolean;
+};
+
+// Permissions that were historically covered by the generic "sessions" toggle.
+// For backward compatibility, when an admin hasn't explicitly set one of these,
+// fall back to the staff member's "sessions" permission so existing access is
+// preserved until the admin fine-tunes it.
+const SESSIONS_FALLBACK_PERMS = new Set<keyof StaffPermissions>([
+  "pending_payments",
+  "bookings",
+  "transfers",
+]);
+
+// Permissions that default to true for existing staff so they don't lose access
+// that they had before these toggles were introduced.
+const DEFAULT_TRUE_PERMS = new Set<keyof StaffPermissions>(["dashboard"]);
+
+export const hasPermission = (
+  permissions: StaffPermissions,
+  key: keyof StaffPermissions,
+): boolean => {
+  if (permissions[key] !== undefined) return !!permissions[key];
+  if (DEFAULT_TRUE_PERMS.has(key)) return true;
+  if (SESSIONS_FALLBACK_PERMS.has(key)) return !!permissions.sessions;
+  return false;
 };
 
 interface AuthContextType {

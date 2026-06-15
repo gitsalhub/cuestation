@@ -12,10 +12,20 @@ import { Plus, Copy, Trash2, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 
 const PERMS = [
+  { key: "dashboard", label: "Dashboard" },
   { key: "floor_map", label: "Floor Map" },
   { key: "sessions", label: "Sessions" },
+  { key: "pending_payments", label: "Pending Payments" },
+  { key: "bookings", label: "Bookings" },
   { key: "counter_sale", label: "Counter Sale" },
   { key: "expenses", label: "Expenses" },
+  { key: "offers", label: "Offers" },
+  { key: "transfers", label: "Transfers" },
+  { key: "products", label: "Products" },
+  { key: "assets", label: "Assets" },
+  { key: "rate_profiles", label: "Rate Profiles" },
+  { key: "analytics", label: "Analytics" },
+  { key: "cash_drawer", label: "Cash Drawer" },
   { key: "bill_override", label: "Bill Override" },
 ] as const;
 

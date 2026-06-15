@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight, Volume2, VolumeX, Info } from "lucide-react";
+import { Gamepad2, Lock, Play, Square, Move, Clock, ShoppingBag, Plus, Minus, Trash2, ArrowLeftRight, Wallet, Tag, Users, X, MoveRight, Volume2, VolumeX, Info, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import NumberInput from "@/components/NumberInput";
 import { priceWithSegments } from "@/lib/pricing";
@@ -21,7 +21,10 @@ type Asset = {
   id: string; name: string; category: string; status: string;
   rate_profile_id: string | null;
   position_x: number; position_y: number; width: number; height: number;
+  tuya_enabled?: boolean | null;
   tuya_device_id?: string | null;
+  availability?: string | null;
+  is_hidden?: boolean | null;
   tuya_device_name?: string | null;
   tuya_server_url?: string | null;
   tuya_state?: string | null;
@@ -225,7 +228,9 @@ const FloorMap = () => {
       supabase.from("offers").select("id, name, offer_type, value, min_minutes, free_minutes, conditions").eq("cafe_id", cafeId).eq("active", true),
       supabase.from("cafes").select("tuya_server_url").eq("id", cafeId).maybeSingle(),
     ]);
-    const assetList = (a || []) as any[];
+    // Hidden assets are excluded everywhere operationally (floor map, selection
+    // lists, transfers). They remain in the database and in Asset Management.
+    const assetList = ((a || []) as any[]).filter((x: any) => !x.is_hidden);
     const sessList = (s || []) as any[];
     setAssets(assetList as any);
     setSessions(sessList as any);
@@ -250,7 +255,7 @@ const FloorMap = () => {
       reconciledRef.current = true;
       const activeAssetIds = new Set(sessList.map((x: any) => x.asset_id));
       assetList
-        .filter((as: any) => as.tuya_device_id && activeAssetIds.has(as.id) && as.tuya_state !== "on")
+        .filter((as: any) => as.tuya_enabled === true && as.tuya_device_id && activeAssetIds.has(as.id) && as.tuya_state !== "on")
         .forEach((as: any) => { applyTuyaForAsset(as, true, tuyaUrl, "reconcile"); });
     }
   };
@@ -358,6 +363,7 @@ const FloorMap = () => {
 
   const startSession = async () => {
     if (!startAsset || !cafeId) return;
+    if (startAsset.availability === "unavailable") return toast.error("Asset is currently unavailable.");
     const { data: { user } } = await supabase.auth.getUser();
     const sel = DURATIONS.find((d) => d.label === durationLabel);
     let planned: number | null = sel?.minutes ?? null;
@@ -374,10 +380,10 @@ const FloorMap = () => {
     // Smart switch ON (best-effort)
     {
       const { data: fresh } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", startAsset.id).maybeSingle();
       console.log("[tuya] session_start", fresh, "globalUrl:", globalTuyaUrl);
-      if (fresh?.tuya_device_id) {
+      if (fresh?.tuya_enabled === true && fresh?.tuya_device_id) {
         const r = await applyTuyaForAsset(fresh as any, true, globalTuyaUrl, "session_start");
         if (!r.ok) toast.warning(`Smart switch ON failed: ${r.error}`);
       } else {
@@ -519,6 +525,7 @@ const FloorMap = () => {
     if (!transferAsset || !transferSession || !transferTo || !cafeId) return;
     const target = assets.find((x) => x.id === transferTo);
     if (!target) return;
+    if (target.availability === "unavailable") return toast.error("Destination asset is currently unavailable.");
     const { data: { user } } = await supabase.auth.getUser();
     const sel = DURATIONS.find((d) => d.label === transferDuration);
     let planned: number | null = sel?.minutes ?? null;
@@ -554,10 +561,10 @@ const FloorMap = () => {
     });
 
     // Smart switch: OFF on source, ON on target (best-effort)
-    if (transferAsset.tuya_device_id) {
+    if (transferAsset.tuya_enabled === true && transferAsset.tuya_device_id) {
       await applyTuyaForAsset(transferAsset as any, false, globalTuyaUrl, "transfer_out");
     }
-    if (target.tuya_device_id) {
+    if (target.tuya_enabled === true && target.tuya_device_id) {
       const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "transfer_in");
       if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
     }
@@ -579,6 +586,7 @@ const FloorMap = () => {
     if (!target) return;
     if (target.id === shiftAsset.id) return toast.error("Pick a different asset");
     if (target.category !== shiftAsset.category) return toast.error("Can only shift within the same category");
+    if (target.availability === "unavailable") return toast.error("Destination asset is currently unavailable.");
     if (target.status !== "available") return toast.error("Destination asset is not available");
     const { data: { user } } = await supabase.auth.getUser();
     const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));
@@ -593,8 +601,8 @@ const FloorMap = () => {
       from_asset_id: shiftAsset.id, to_asset_id: target.id, transferred_by: user?.id,
     });
     // Smart switch OFF on source, ON on target (best-effort)
-    if (shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
-    if (target.tuya_device_id) {
+    if (shiftAsset.tuya_enabled === true && shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
+    if (target.tuya_enabled === true && target.tuya_device_id) {
       const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "shift_in");
       if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
     }
@@ -718,11 +726,11 @@ const FloorMap = () => {
     // Smart switch OFF for the current owner asset only (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", endingAsset.id);
       console.log("[tuya] session_end", freshAssets, "globalUrl:", globalTuyaUrl);
       for (const a of (freshAssets || []) as any[]) {
-        if (!a.tuya_device_id) continue;
+        if (a.tuya_enabled !== true || !a.tuya_device_id) continue;
         const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");
         if (!r.ok) toast.warning(`Smart switch OFF failed for ${a.name}: ${r.error}`);
       }
@@ -770,10 +778,10 @@ const FloorMap = () => {
     // Smart switch OFF for the current owner asset only (best-effort)
     {
       const { data: freshAssets } = await supabase.from("assets")
-        .select("id, cafe_id, name, tuya_device_id, tuya_device_name, tuya_server_url")
+        .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", endingAsset.id);
       for (const a of (freshAssets || []) as any[]) {
-        if (!a.tuya_device_id) continue;
+        if (a.tuya_enabled !== true || !a.tuya_device_id) continue;
         const r = await applyTuyaForAsset(a, false, globalTuyaUrl, "session_end");
         if (!r.ok) toast.warning(`Smart switch OFF failed for ${a.name}: ${r.error}`);
       }
@@ -887,6 +895,7 @@ const FloorMap = () => {
   };
 
   const tileClass = (a: Asset) => {
+    if (a.availability === "unavailable" && a.status !== "occupied") return "border-muted bg-muted/20 opacity-60";
     if (a.status === "locked") return "border-muted bg-muted/20 opacity-60";
     if (a.status === "available") return "border-success/50 bg-success/10 shadow-[0_0_18px_hsl(var(--success)/0.35)]";
     const session = sessions.find((s) => s.asset_id === a.id);
@@ -989,8 +998,12 @@ const FloorMap = () => {
                 {assets.map((a) => {
                   const session = sessions.find((s) => s.asset_id === a.id);
                   const isOccupied = a.status === "occupied" && !!session;
+                  const isUnavailable = a.availability === "unavailable";
                   const onTileClick = () => {
-                    if (a.status === "available") openStart(a);
+                    if (a.status === "available") {
+                      if (isUnavailable) return toast.error("Asset is currently unavailable.");
+                      openStart(a);
+                    }
                     else if (isOccupied) beginEnd(a);
                     else toggleLock(a);
                   };
@@ -1004,6 +1017,11 @@ const FloorMap = () => {
                       </div>
                       <div className="font-bold text-sm truncate shrink-0">{a.name}</div>
                       <div className="text-xs text-muted-foreground capitalize mb-1 truncate shrink-0">{a.category}</div>
+                      {a.availability === "unavailable" && !isOccupied && (
+                        <span className="inline-flex items-center gap-1 self-start rounded-full bg-warning/20 px-2 py-0.5 text-[10px] font-semibold text-warning shrink-0">
+                          <Wrench className="w-3 h-3" />Unavailable
+                        </span>
+                      )}
                       {isAlerting(a, session) && (
                         <span role="button" tabIndex={0}
                           onClick={(e) => { e.stopPropagation(); toggleMuteAlert(a, session); }}
@@ -1197,7 +1215,7 @@ const FloorMap = () => {
               <Select value={transferTo} onValueChange={setTransferTo}>
                 <SelectTrigger><SelectValue placeholder="Pick an available asset" /></SelectTrigger>
                 <SelectContent>
-                  {assets.filter((a) => a.status === "available" && a.id !== transferAsset?.id).map((a) => (
+                  {assets.filter((a) => a.status === "available" && a.availability !== "unavailable" && a.id !== transferAsset?.id).map((a) => (
                     <SelectItem key={a.id} value={a.id}>{a.name} ({a.category})</SelectItem>
                   ))}
                 </SelectContent>
@@ -1569,7 +1587,7 @@ const FloorMap = () => {
               <Label>Destination asset</Label>
               {(() => {
                 const eligible = assets.filter(
-                  (a) => a.status === "available" && a.id !== shiftAsset?.id && a.category === shiftAsset?.category,
+                  (a) => a.status === "available" && a.availability !== "unavailable" && a.id !== shiftAsset?.id && a.category === shiftAsset?.category,
                 );
                 if (eligible.length === 0) {
                   return (

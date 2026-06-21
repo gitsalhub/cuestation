@@ -152,7 +152,7 @@
 @layer base {
   /* Make native date/time picker icons follow theme */
   input[type="date"], input[type="datetime-local"], input[type="time"], input[type="month"] {
-    color-scheme: dark;
+    color-scheme: white;
   }
   .theme-light input[type="date"],
   .theme-light input[type="datetime-local"],
@@ -162,7 +162,7 @@
   input[type="datetime-local"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator,
   input[type="month"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) brightness(2);
+    filter: invert(1) brightness(100) !important;
     opacity: 0.85;
     cursor: pointer;
     margin-left: auto;

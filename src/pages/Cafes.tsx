@@ -181,12 +181,12 @@ const Cafes = () => {
                 <Undo2 className="w-4 h-4 mr-1" />Return to Super Admin
               </Button>
             )}
-            <Button variant="outline" onClick={() => { setCreatedCreds(null); setInviteOpen(true); }}>
-              <UserPlus className="w-4 h-4 mr-1" />Create cafe admin
+            <Button variant="outline" onClick={() => { setCreatedCreds(null); setInviteOpen(true); }}className="bg-gradient-primary text-primary-foreground">
+              <Plus className="w-4 h-4 mr-1" />Create cafe
             </Button>
-            <Button onClick={() => { setEditing(null); setName(""); setExpires(""); setActive(true); setLogoUrl(""); setOpen(true); }} className="bg-gradient-primary text-primary-foreground">
+            {/* <Button onClick={() => { setEditing(null); setName(""); setExpires(""); setActive(true); setLogoUrl(""); setOpen(true); }} className="bg-gradient-primary text-primary-foreground">
               <Plus className="w-4 h-4 mr-1" />Add cafe
-            </Button>
+            </Button> */}
           </div>
         } />
 

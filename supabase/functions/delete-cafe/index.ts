@@ -29,8 +29,31 @@ Deno.serve(async (req) => {
     const userIds = (profs || []).map((p: any) => p.id);
 
     // Cascade DB rows via SQL function
-    const { error: rpcErr } = await admin.rpc("force_delete_cafe", { _cafe_id: cafeId });
-    if (rpcErr) return new Response(JSON.stringify({ error: rpcErr.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Cascade DB rows via SQL function
+const { error: rpcErr } = await admin.rpc(
+  "force_delete_cafe",
+  { _cafe_id: cafeId }
+);
+
+if (rpcErr) {
+  console.error("FORCE DELETE ERROR:", rpcErr);
+
+  return new Response(
+    JSON.stringify({
+      error: rpcErr.message,
+      details: rpcErr.details,
+      hint: rpcErr.hint,
+      code: rpcErr.code,
+    }),
+    {
+      status: 400,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
 
     // Delete auth users (admins/staff)
     for (const uid of userIds) {

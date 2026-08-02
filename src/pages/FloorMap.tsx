@@ -143,6 +143,7 @@ const FloorMap = () => {
   const [chainSessionIds, setChainSessionIds] = useState<string[]>([]);
   const [chainAssetIds, setChainAssetIds] = useState<string[]>([]);
   const [endAdvances, setEndAdvances] = useState(0);
+  const [endAdvanceDetails, setEndAdvanceDetails] = useState<any[]>([]);
   const [endItemsList, setEndItemsList] = useState<{ name: string; qty: number; price: number }[]>([]);
   // Frozen context so an offer chosen at end re-computes against the same data.
   const [endCtx, setEndCtx] = useState<any>(null);
@@ -218,6 +219,8 @@ const FloorMap = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [globalTuyaUrl, setGlobalTuyaUrl] = useState<string>("");
   const reconciledRef = useRef(false);
+  const refund = endAmount < 0 ? Math.abs(endAmount) : 0;
+const amountDue = endAmount > 0 ? endAmount : 0;
 
   const load = async () => {
     if (!cafeId) return;
@@ -646,19 +649,35 @@ const FloorMap = () => {
     }
 
     const game = +(currentGame + parentsGame).toFixed(2);
+    
     const total = +(game + allItemsTotal).toFixed(2);
 
     // Sum advances paid against this chain
-    const { data: advs } = await supabase.from("session_advances").select("amount").in("session_id", chainIds);
+    const { data: advs } = await supabase
+      .from("session_advances")
+      .select("id, amount, payment_method")
+      .in("session_id", chainIds);
+
+    setEndAdvanceDetails(advs || []);
+    console.log("Advance Details:", advs);
     const advancesTotal = (advs || []).reduce((s: number, a: any) => s + Number(a.amount || 0), 0);
-    const due = Math.max(0, +(total - advancesTotal).toFixed(2));
+    const settlement = +(total - advancesTotal).toFixed(2);
+    console.log("END SESSION DEBUG", {
+  currentGame,
+  parentsGame,
+  game,
+  allItemsTotal,
+  total,
+  advancesTotal,
+  settlement
+});
 
     setChainSessionIds(chainIds);
     setChainAssetIds(chainAssets);
     setEndingAsset(asset); setEndingSession(session);
     setEndGame(game); setEndItems(+allItemsTotal.toFixed(2));
     setEndAdvances(+advancesTotal.toFixed(2));
-    setEndComputed(due); setEndAmount(due);
+    setEndComputed(settlement); setEndAmount(settlement);
     setOverrideOn(false); setOverrideReason("");
     setEndOfferId("none");
     // Keep everything needed to re-price when an offer is picked at end.
@@ -678,21 +697,69 @@ const FloorMap = () => {
     }
     setPayMethod("cash"); setPayChosen(false); setCashAmt(0); setUpiAmt(0);
   };
+  const removeAdvance = async (id: string) => {
+  if (!window.confirm("Remove this advance payment?")) return;
 
+  const { error } = await supabase
+    .from("session_advances")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    toast.error(error.message);
+    return;
+  }
+
+  toast.success("Advance removed");
+
+  if (endingAsset) {
+    await beginEnd(endingAsset);
+  }
+};
   const confirmEnd = async () => {
+    
     if (!endingAsset || !endingSession) return;
+    if (endAmount === 0) {
+  const ok = window.confirm(
+    "This session has no outstanding balance.\n\nClose the session?"
+  );
+
+  if (!ok) return;
+}
     const grossTotal = +(endGame + endItems).toFixed(2);
     if (overrideOn) {
       const totalPaid = +(endAmount + endAdvances).toFixed(2);
       if (endAmount < 0) return toast.error("Override amount cannot be negative");
       if (totalPaid > grossTotal + 0.01) return toast.error(`Override (₹${totalPaid.toFixed(2)}) cannot exceed bill ₹${grossTotal.toFixed(2)}`);
     }
-    let cash = 0, upi = 0;
-    if (payMethod === "cash") cash = endAmount;
-    else if (payMethod === "upi") upi = endAmount;
-    else { cash = cashAmt; upi = upiAmt;
-      if (Math.abs(cash + upi - endAmount) > 0.01) return toast.error("Cash + UPI must equal total");
+    if (endAmount > 0 && !payChosen) {
+  return toast.error("Please select a payment method");
+}
+   let cash = 0, upi = 0;
+
+if (endAmount > 0) {
+  if (payMethod === "cash") {
+    cash = endAmount;
+  } else if (payMethod === "upi") {
+    upi = endAmount;
+  } else {
+    cash = cashAmt;
+    upi = upiAmt;
+
+    if (Math.abs(cash + upi - endAmount) > 0.01) {
+      return toast.error("Cash + UPI must equal total");
     }
+  }
+}
+if (endAmount < 0) {
+    const refund = Math.abs(endAmount);
+
+    if (payMethod === "cash") {
+        cash = -refund;
+    } else if (payMethod === "upi") {
+        upi = -refund;
+    }
+}
 
     // total_amount = gross bill (game + items), unaffected by override or advances.
     // override_amount (when set) = effective amount the customer paid in total
@@ -706,7 +773,9 @@ const FloorMap = () => {
       override_amount: effectivePaid,
       override_reason: overrideOn ? (overrideReason || null) : null,
       applied_offer_id: endOfferId !== "none" ? endOfferId : null,
-      payment_method: payMethod, cash_amount: cash, upi_amount: upi,
+      payment_method: endAmount === 0 ? "advance" : payMethod, cash_amount: cash, upi_amount: upi,
+      refund_amount: endAmount < 0 ? Math.abs(endAmount) : 0,
+  refund_method: endAmount < 0 ? payMethod : null,
     }).eq("id", endingSession.id);
     if (updErr) return toast.error(updErr.message);
 
@@ -1313,12 +1382,34 @@ const FloorMap = () => {
                         <span className="font-mono">₹{endGame.toFixed(2)}</span>
                       </div>
                       <div className="h-px bg-border/60 my-1" />
-                      {endAdvances > 0 && (
-                        <div className="flex justify-between py-1 text-sm text-success">
-                          <span>Advance paid</span>
-                          <span className="font-mono">− ₹{endAdvances.toFixed(2)}</span>
+                      {/* <p className="text-red-500 text-xs">
+                        {JSON.stringify(endAdvanceDetails)}
+                      </p> */}
+                      {endAdvanceDetails.map((adv) => (
+                        <div
+                          key={adv.id}
+                          className="flex justify-between items-center py-1 text-sm text-success"
+                        >
+                          <span>
+                            Advance Paid ({adv.payment_method.toUpperCase()})
+                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono">
+                              - ₹{Number(adv.amount).toFixed(2)}
+                            </span>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => removeAdvance(adv.id)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
-                      )}
+                      ))}
                       <div className="flex justify-between py-1 text-sm">
                         <span className="font-semibold">Original Total</span>
                         <span className="font-mono">₹{gross.toFixed(2)}</span>
@@ -1488,8 +1579,19 @@ const FloorMap = () => {
                 {/* Footer */}
                 <div className="border-t border-border p-4 shrink-0 flex flex-wrap items-center justify-between gap-3 bg-card/60">
                   <div>
-                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Total Payable</div>
-                    <div className="text-3xl font-extrabold neon-text">₹{payable.toFixed(2)}</div>
+                    {endAmount > 0 ? (
+    <div className="text-red-400 font-bold text-xl">
+        Customer Pays ₹{amountDue.toFixed(2)}
+    </div>
+) : endAmount < 0 ? (
+    <div className="text-orange-400 font-bold text-xl">
+        Refund Customer ₹{refund.toFixed(2)}
+    </div>
+) : (
+    <div className="text-green-400 font-bold text-xl">
+        Fully Settled
+    </div>
+)}
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setEndingAsset(null)}>Keep Open</Button>
@@ -1497,9 +1599,12 @@ const FloorMap = () => {
                       title="Close session now and collect payment later">
                       Pending & Close
                     </Button>
-                    <Button onClick={confirmEnd} disabled={!payChosen}
-                      className="bg-gradient-primary text-primary-foreground disabled:opacity-50">
-                      Close &amp; Collect Payment
+                    <Button
+                      onClick={confirmEnd}
+                      disabled={payable > 0 && !payChosen}
+                      className="bg-gradient-primary text-primary-foreground disabled:opacity-50"
+                    >
+                      Close & Collect Payment
                     </Button>
                   </div>
                 </div>

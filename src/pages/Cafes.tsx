@@ -7,7 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, Calendar, UserPlus, Copy, Trash2, KeyRound, LogIn, Undo2 } from "lucide-react";
+import {
+  Plus,
+  Calendar,
+  UserPlus,
+  Copy,
+  Trash2,
+  KeyRound,
+  LogIn,
+  Undo2,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 
 const Cafes = () => {
@@ -34,6 +44,9 @@ const Cafes = () => {
   const [resetOutput, setResetOutput] = useState<{ email: string; tempPassword: string } | null>(null);
   const [impersonating, setImpersonating] = useState(false);
   const [customPwd, setCustomPwd] = useState<Record<string, string>>({});
+  const [subscriptionType, setSubscriptionType] =
+  useState<"trial" | "paid">("paid");
+  const [search, setSearch] = useState("");
 
   // Detect saved super admin session for "Return to Super Admin"
   const [savedSuper, setSavedSuper] = useState<any>(null);
@@ -66,6 +79,16 @@ const Cafes = () => {
   const totalCafes = cafes.length;
   const activeCafes = cafes.filter((c) => c.active && (!c.subscription_expires_at || new Date(c.subscription_expires_at) > new Date())).length;
   const expiringSoon = cafes.filter((c) => c.subscription_expires_at && new Date(c.subscription_expires_at) > new Date() && (new Date(c.subscription_expires_at).getTime() - Date.now()) < 7 * 86400000).length;
+  const filteredCafes = cafes.filter((c) => {
+  const q = search.toLowerCase();
+
+  return (
+    c.name.toLowerCase().includes(q) ||
+    (c.admins ?? []).some((a: any) =>
+      (a.email || "").toLowerCase().includes(q)
+    )
+  );
+});
 
   const save = async () => {
     const payload: any = { name, active, subscription_expires_at: expires ? new Date(expires).toISOString() : null, logo_url: logoUrl || null };
@@ -99,14 +122,14 @@ const Cafes = () => {
         body: {
           email: iEmail, fullName: iFullName, cafeName: iCafeName,
           password: iPassword || undefined,
-          subscriptionExpiresAt: iExpires ? new Date(iExpires).toISOString() : null,
+          subscriptionExpiresAt: expires ? new Date(expires).toISOString() : null,
         },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setCreatedCreds({ email: data.email, tempPassword: data.tempPassword });
       toast.success("Cafe admin created");
-      setIEmail(""); setIFullName(""); setICafeName(""); setIPassword(""); setIExpires("");
+      setIEmail(""); setIFullName(""); setICafeName(""); setIPassword(""); setExpires("");
       load();
     } catch (e: any) {
       toast.error(e.message || "Failed");
@@ -195,9 +218,20 @@ const Cafes = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Active</div><div className="text-2xl font-bold text-success">{activeCafes}</div></Card>
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expiring within 7 days</div><div className="text-2xl font-bold text-orange-500">{expiringSoon}</div></Card>
       </div>
+      <div className="mb-6 flex justify-end">
+  <div className="relative w-full sm:w-80">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
+    <Input
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+      placeholder="Search cafe"
+      className="pl-10"
+    />
+  </div>
+</div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cafes.map((c) => {
+       {filteredCafes.map((c) => {
           const exp = c.subscription_expires_at ? new Date(c.subscription_expires_at) : null;
           const expired = exp && exp.getTime() < Date.now();
           return (
@@ -217,8 +251,30 @@ const Cafes = () => {
               </div>
               <div className="flex flex-wrap gap-1">
                 <Button size="sm" variant="outline" onClick={() => {
-                  setEditing(c); setName(c.name); setActive(c.active); setLogoUrl(c.logo_url || "");
-                  setExpires(c.subscription_expires_at ? new Date(c.subscription_expires_at).toISOString().slice(0, 10) : "");
+setEditing(c);
+setName(c.name);
+setActive(c.active);
+setLogoUrl(c.logo_url || "");
+
+const exp = c.subscription_expires_at
+  ? new Date(c.subscription_expires_at)
+  : null;
+
+if (exp) {
+  setExpires(exp.toISOString().slice(0, 10));
+
+  // Treat approximately 30-day subscriptions as Trial
+  const diffDays = Math.round(
+    (exp.getTime() - new Date(c.created_at).getTime()) / 86400000
+  );
+
+  setSubscriptionType(diffDays <= 31 ? "trial" : "paid");
+} else {
+  setExpires("");
+  setSubscriptionType("paid");
+}
+
+setOpen(true);                  setExpires(c.subscription_expires_at ? new Date(c.subscription_expires_at).toISOString().slice(0, 10) : "");
                   setOpen(true);
                 }}>Edit</Button>
                 <Button size="sm" variant="outline" onClick={() => { setResetOutput(null); setCredsOpen(c); }}>
@@ -231,8 +287,13 @@ const Cafes = () => {
             </Card>
           );
         })}
-        {cafes.length === 0 && <p className="text-muted-foreground">No cafes yet</p>}
-      </div>
+{filteredCafes.length === 0 && (
+  <Card className="glass-card p-8 col-span-full text-center">
+    <p className="text-muted-foreground">
+      No cafes found.
+    </p>
+  </Card>
+)}      </div>
 
       {/* Create/Edit cafe */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -240,8 +301,52 @@ const Cafes = () => {
           <DialogHeader><DialogTitle>{editing ? "Edit" : "New"} cafe</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div><Label>Subscription expires</Label><Input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} /></div>
-            <div className="flex items-center justify-between p-2 rounded border border-border">
+<div className="space-y-3">
+
+    <Label>Subscription Type</Label>
+
+    <div className="flex gap-4">
+
+        <label className="flex items-center gap-2">
+            <input
+                type="radio"
+                checked={subscriptionType === "trial"}
+                onChange={() => {
+                    setSubscriptionType("trial");
+
+                    const d = new Date();
+                    d.setDate(d.getDate() + 30);
+
+                    setExpires(d.toISOString().slice(0,10));
+                }}
+            />
+            Trial (30 Days)
+        </label>
+
+        <label className="flex items-center gap-2">
+            <input
+                type="radio"
+                checked={subscriptionType === "paid"}
+                onChange={() => {
+                    setSubscriptionType("paid");
+                    setExpires("");
+                }}
+            />
+            Paid
+        </label>
+
+    </div>
+
+    <Label>Subscription expires</Label>
+
+    <Input
+        type="date"
+        value={expires}
+        disabled={subscriptionType === "trial"}
+        onChange={(e)=>setExpires(e.target.value)}
+    />
+
+</div>            <div className="flex items-center justify-between p-2 rounded border border-border">
               <Label>Active</Label>
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="w-5 h-5" />
             </div>
@@ -279,8 +384,71 @@ const Cafes = () => {
               <div><Label>Admin full name</Label><Input value={iFullName} onChange={(e) => setIFullName(e.target.value)} /></div>
               <div><Label>Admin email *</Label><Input type="email" value={iEmail} onChange={(e) => setIEmail(e.target.value)} /></div>
               <div><Label>Temporary password (optional)</Label><Input value={iPassword} onChange={(e) => setIPassword(e.target.value)} placeholder="auto-generated if blank" /></div>
-              <div><Label>Subscription expires</Label><Input type="date" value={iExpires} onChange={(e) => setIExpires(e.target.value)} /></div>
-              <Button onClick={inviteAdmin} disabled={iLoading} className="w-full bg-gradient-primary text-primary-foreground">
+<div className="space-y-3">
+
+    <Label>Subscription Type</Label>
+
+    <div className="flex gap-4">
+
+        <label className="flex items-center gap-2">
+            <input
+                type="radio"
+                checked={subscriptionType === "trial"}
+                onChange={() => {
+                    setSubscriptionType("trial");
+
+                    const d = new Date();
+                    d.setDate(d.getDate() + 30);
+
+                    setExpires(d.toISOString().slice(0,10));
+                }}
+            />
+            Trial (30 Days)
+        </label>
+
+        <label className="flex items-center gap-2">
+            <input
+                type="radio"
+                checked={subscriptionType === "paid"}
+                onChange={() => {
+                    setSubscriptionType("paid");
+                    setExpires("");
+                }}
+            />
+            Paid Subscription
+        </label>
+
+    </div>
+
+    {subscriptionType === "trial" ? (
+
+        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+
+            <div className="font-medium text-green-400">
+                ✓ Trial expires on
+            </div>
+
+            <div className="text-sm mt-1">
+                {new Date(expires).toLocaleDateString()}
+            </div>
+
+        </div>
+
+    ) : (
+
+        <div>
+            <Label>Subscription Expiry</Label>
+
+            <Input
+                type="date"
+                value={expires}
+                onChange={(e)=>setExpires(e.target.value)}
+            />
+        </div>
+
+    )}
+
+</div>              <Button onClick={inviteAdmin} disabled={iLoading} className="w-full bg-gradient-primary text-primary-foreground">
                 {iLoading ? "Creating..." : "Create admin & cafe"}
               </Button>
             </div>

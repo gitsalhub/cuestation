@@ -74,6 +74,7 @@ const Analytics = () => {
     const expQ = supabase.from("expenses").select("id, amount, category, note, expense_date").eq("cafe_id", cafeId).gte("expense_date", sinceIso.slice(0, 10)).lte("expense_date", untilIso.slice(0, 10));
     Promise.all([sessQ, billsQ, expQ]).then(async ([s, b, e]) => {
       const sessions = (s.data || []) as any[];
+      console.log("SESSIONS", sessions);
       const bills = (b.data || []) as any[];
       const expenses = (e.data || []) as any[];
       // Advances follow their parent session's close date — fetch by session id.
@@ -138,16 +139,8 @@ const Analytics = () => {
       setProductRows(Object.values(pm).sort((a, b) => b.revenue - a.revenue));
 
       // Totals — include overridden bills (paid value)
-      const gaming = sessions.reduce((s, x) => s + (x.override_amount != null ? Number(x.override_amount) : Number(x.game_amount || 0)), 0);
-      const productSale = sessions.reduce((s, x) => s + (x.override_amount != null ? 0 : Number(x.items_amount || 0)), 0)
-                       + bills.reduce((s, x) => s + billPaid(x), 0);
-      const total = gaming + productSale;
-      const expensesTotal = expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
-
-      // Cash / UPI = session end collection + advances, capped per session so
-      // older rows where cash_amount/upi_amount already include the advance do
-      // not count the same advance twice.
-      const advBySession = new Map<string, { cash: number; upi: number; total: number }>();
+      // Revenue should represent what was actually collected.
+ const advBySession = new Map<string, { cash: number; upi: number; total: number }>();
       for (const a of advances) {
         const cur = advBySession.get(a.session_id) || { cash: 0, upi: 0, total: 0 };
         const amt = Number(a.amount || 0);
@@ -157,18 +150,55 @@ const Analytics = () => {
         else { cur.cash += Number(a.cash_amount || 0); cur.upi += Number(a.upi_amount || 0); }
         advBySession.set(a.session_id, cur);
       }
-      let cash = 0, upi = 0;
-      for (const r of sessions) {
-        const endCash = Number(r.cash_amount || 0), endUpi = Number(r.upi_amount || 0);
-        const advs = advBySession.get(r.id) || { cash: 0, upi: 0, total: 0 };
-        // Advances only count toward cash/UPI revenue once the session has ended.
-        const ended = r.status === "completed";
-        const alreadyIncluded = endCash + endUpi + advs.total > sessPaid(r) + 0.01;
-        const includeAdv = ended && !alreadyIncluded;
-        cash += endCash + (includeAdv ? advs.cash : 0);
-        upi += endUpi + (includeAdv ? advs.upi : 0);
-      }
-      for (const r of bills)    { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
+const gaming = sessions.reduce((s, x) => {
+  const paid = x.override_amount != null
+    ? Number(x.override_amount)
+    : Number(x.game_amount || 0);
+
+  const adv = advBySession.get(x.id);
+
+  // If this session was paid completely by advances,
+  // game_amount is still revenue even though cash_amount/upi_amount are zero.
+  return s + paid;
+}, 0);
+
+const productSale =
+  sessions.reduce((s, x) => {
+    if (x.override_amount != null) return s;
+    return s + Number(x.items_amount || 0);
+  }, 0) +
+  bills.reduce((s, x) => s + billPaid(x), 0);
+
+const total = gaming + productSale;
+console.log("Gaming =", gaming);
+console.log("Product =", productSale);
+console.log("Total =", total);
+      const expensesTotal = expenses.reduce((s, x) => s + Number(x.amount || 0), 0);
+
+      // Cash / UPI = session end collection + advances, capped per session so
+      // older rows where cash_amount/upi_amount already include the advance do
+      // not count the same advance twice.
+     
+    let cash = 0;
+let upi = 0;
+
+for (const s of sessions) {
+    const adv = advBySession.get(s.id) || {
+        cash: 0,
+        upi: 0,
+        total: 0,
+    };
+
+    cash += Number(s.cash_amount || 0) + adv.cash;
+    upi += Number(s.upi_amount || 0) + adv.upi;
+}
+
+cash += bills.reduce((t, x) => t + Number(x.cash_amount || 0), 0);
+upi += bills.reduce((t, x) => t + Number(x.upi_amount || 0), 0);
+
+// cash += bills.reduce((t, x) => t + Number(x.cash_amount || 0), 0);
+// upi += bills.reduce((t, x) => t + Number(x.upi_amount || 0), 0);
+      // for (const r of bills)    { cash += Number(r.cash_amount || 0); upi += Number(r.upi_amount || 0); }
       // Advance collection card: only count advances whose session has ended in range.
       const endedSessIds = new Set(sessions.map((x) => x.id));
       let advancesTotal = 0;
@@ -189,7 +219,35 @@ const Analytics = () => {
       expenses.forEach((x) => { ec[x.category || "general"] = (ec[x.category || "general"] || 0) + Number(x.amount || 0); });
       setExpenseCats(Object.entries(ec).map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount));
       setExpenseList([...expenses].sort((a, b) => (b.expense_date || "").localeCompare(a.expense_date || "")));
-
+      console.table(
+  sessions.map((s) => ({
+    id: s.id,
+    customer: s.customer_name,
+    game: s.game_amount,
+    items: s.items_amount,
+    total: s.total_amount,
+    override: s.override_amount,
+    cash: s.cash_amount,
+    upi: s.upi_amount,
+    payment: s.payment_method,
+    collected:
+      Number(s.cash_amount || 0) +
+      Number(s.upi_amount || 0),
+    difference:
+      Number(s.game_amount || 0) +
+      Number(s.items_amount || 0) -
+      (
+        Number(s.cash_amount || 0) +
+        Number(s.upi_amount || 0)
+      ),
+  }))
+);
+console.log("Gaming", gaming);
+console.log("Cash", cash);
+console.log("UPI", upi);
+console.log("Revenue", total);
+console.log("Collected", cash + upi);
+console.log("Difference", total - (cash + upi));
       setTotals({ gaming, productSale, total, cash, upi, expenses: expensesTotal, overrides, overridesCount, advances: advancesTotal, advancesCount });
 
       // Staff aggregation (use non-overridden only for revenue; overrides tracked separately)
@@ -216,8 +274,10 @@ const Analytics = () => {
         const paid = sessPaid(x);
         r.revenue += paid;
         r.override += sessLoss(x);
-        r.cash += Number(x.cash_amount || 0);
-        r.upi += Number(x.upi_amount || 0);
+       const adv = advBySession.get(x.id);
+
+r.cash += Number(x.cash_amount || 0) + Number(adv?.cash || 0);
+r.upi  += Number(x.upi_amount || 0) + Number(adv?.upi || 0);
         r.discount += Number(x.discount_amount || 0);
       });
       bills.forEach((x: any) => {

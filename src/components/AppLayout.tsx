@@ -41,16 +41,46 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebar_collapsed") === "1");
   const [cafeName, setCafeName] = useState<string>("");
   const [pwdOpen, setPwdOpen] = useState(false);
+  const [subscription, setSubscription] = useState<{
+  expires: string | null;
+  type: "trial" | "paid";
+} | null>(null);
 
   const [cafeLogo, setCafeLogo] = useState<string>("");
   useEffect(() => {
-    if (!cafeId) { setCafeName(""); setCafeLogo(""); return; }
-    supabase.from("cafes").select("name, logo_url").eq("id", cafeId).maybeSingle().then(({ data }) => {
-      setCafeName(data?.name || "");
-      setCafeLogo((data as any)?.logo_url || "");
-    });
-  }, [cafeId]);
+  if (!cafeId) {
+    setCafeName("");
+    setCafeLogo("");
+    setSubscription(null);
+    return;
+  }
 
+  supabase
+    .from("cafes")
+    .select("name, logo_url, subscription_expires_at, created_at")
+    .eq("id", cafeId)
+    .maybeSingle()
+    .then(({ data }) => {
+      if (!data) return;
+
+      setCafeName(data.name || "");
+      setCafeLogo((data as any).logo_url || "");
+
+      if (data.subscription_expires_at) {
+        const created = new Date(data.created_at);
+        const expires = new Date(data.subscription_expires_at);
+
+        const diff =
+          (expires.getTime() - created.getTime()) /
+          (1000 * 60 * 60 * 24);
+
+        setSubscription({
+          expires: data.subscription_expires_at,
+          type: diff <= 31 ? "trial" : "paid",
+        });
+      }
+    });
+}, [cafeId]);
   const toggleCollapsed = () => {
     setCollapsed((c) => {
       const n = !c;
@@ -64,6 +94,12 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
     if (role === "staff" && it.perm && !hasPermission(permissions, it.perm)) return false;
     return true;
   });
+  const daysRemaining = subscription?.expires
+  ? Math.ceil(
+      (new Date(subscription.expires).getTime() - Date.now()) /
+        86400000
+    )
+  : null;
 
   return (
     <div className="min-h-screen flex">
@@ -150,6 +186,41 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           </div>
         )}
         <div className="p-8 max-w-7xl mx-auto">{children}</div>
+        {role !== "super_admin" &&
+ subscription &&
+ subscription.type === "trial" && (
+
+<div className="fixed bottom-5 right-5 z-50">
+
+  <div className="backdrop-blur-md bg-cyan-500/10 border border-cyan-400/30 rounded-xl px-5 py-3 shadow-2xl">
+
+    <div className="flex items-center gap-2">
+
+      <span className="text-xl">🧪</span>
+
+      <div>
+
+        <div className="font-semibold text-cyan-300">
+          Trial Version
+        </div>
+
+        <div className="text-sm text-muted-foreground">
+          {daysRemaining! >= 0
+            ? `${daysRemaining} day${
+                daysRemaining === 1 ? "" : "s"
+              } remaining`
+            : "Trial Expired"}
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+)}
       </main>
     </div>
   );

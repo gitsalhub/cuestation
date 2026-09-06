@@ -81,6 +81,10 @@ export const computePrice = (rate: Rate | undefined, players: number, elapsedMin
 const FloorMap = () => {
   const { cafeId, role } = useAuth();
   const isAdmin = role === "admin" || role === "super_admin";
+  
+  // Processing state for disabling double-clicks
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const [assets, setAssets] = useState<Asset[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [rates, setRates] = useState<Rate[]>([]);
@@ -220,7 +224,7 @@ const FloorMap = () => {
   const [globalTuyaUrl, setGlobalTuyaUrl] = useState<string>("");
   const reconciledRef = useRef(false);
   const refund = endAmount < 0 ? Math.abs(endAmount) : 0;
-const amountDue = endAmount > 0 ? endAmount : 0;
+  const amountDue = endAmount > 0 ? endAmount : 0;
 
   const load = async () => {
     if (!cafeId) return;
@@ -365,36 +369,45 @@ const amountDue = endAmount > 0 ? endAmount : 0;
   };
 
   const startSession = async () => {
-    if (!startAsset || !cafeId) return;
+    if (!startAsset || !cafeId || isProcessing) return;
     if (startAsset.availability === "unavailable") return toast.error("Asset is currently unavailable.");
-    const { data: { user } } = await supabase.auth.getUser();
-    const sel = DURATIONS.find((d) => d.label === durationLabel);
-    let planned: number | null = sel?.minutes ?? null;
-    if (planned === -1) planned = customMinutes > 0 ? customMinutes : null;
-    const { error } = await supabase.from("sessions").insert({
-      cafe_id: cafeId, asset_id: startAsset.id, customer_name: customerName || null,
-      started_by: user?.id, status: "active",
-      player_count: startAsset.category === "ps5" ? players : 1,
-      planned_minutes: planned,
-      rate_profile_id: startAsset.rate_profile_id || null,
-    });
-    if (error) return toast.error(error.message);
-    await supabase.from("assets").update({ status: "occupied" }).eq("id", startAsset.id);
-    // Smart switch ON (best-effort)
-    {
+    
+    setIsProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const sel = DURATIONS.find((d) => d.label === durationLabel);
+      let planned: number | null = sel?.minutes ?? null;
+      if (planned === -1) planned = customMinutes > 0 ? customMinutes : null;
+      
+      const { error } = await supabase.from("sessions").insert({
+        cafe_id: cafeId, asset_id: startAsset.id, customer_name: customerName || null,
+        started_by: user?.id, status: "active",
+        player_count: startAsset.category === "ps5" ? players : 1,
+        planned_minutes: planned,
+        rate_profile_id: startAsset.rate_profile_id || null,
+      });
+      if (error) return toast.error(error.message);
+      
+      await supabase.from("assets").update({ status: "occupied" }).eq("id", startAsset.id);
+      
+      // Smart switch ON (best-effort)
       const { data: fresh } = await supabase.from("assets")
         .select("id, cafe_id, name, tuya_enabled, tuya_device_id, tuya_device_name, tuya_server_url")
         .eq("id", startAsset.id).maybeSingle();
       console.log("[tuya] session_start", fresh, "globalUrl:", globalTuyaUrl);
+      
       if (fresh?.tuya_enabled === true && fresh?.tuya_device_id) {
         const r = await applyTuyaForAsset(fresh as any, true, globalTuyaUrl, "session_start");
         if (!r.ok) toast.warning(`Smart switch ON failed: ${r.error}`);
       } else {
         toast.info("No smart switch linked to this asset");
       }
+      
+      toast.success("Session started");
+      setStartAsset(null); load();
+    } finally {
+      setIsProcessing(false);
     }
-    toast.success("Session started");
-    setStartAsset(null); load();
   };
 
   const openChangePlayers = (a: Asset) => {
@@ -525,55 +538,66 @@ const amountDue = endAmount > 0 ? endAmount : 0;
     setTransferDuration("1 hr"); setTransferCustom(60);
   };
   const confirmTransfer = async () => {
-    if (!transferAsset || !transferSession || !transferTo || !cafeId) return;
+    if (!transferAsset || !transferSession || !transferTo || !cafeId || isProcessing) return;
     const target = assets.find((x) => x.id === transferTo);
     if (!target) return;
     if (target.availability === "unavailable") return toast.error("Destination asset is currently unavailable.");
-    const { data: { user } } = await supabase.auth.getUser();
-    const sel = DURATIONS.find((d) => d.label === transferDuration);
-    let planned: number | null = sel?.minutes ?? null;
-    if (planned === -1) planned = transferCustom > 0 ? transferCustom : null;
+    
+    setIsProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const sel = DURATIONS.find((d) => d.label === transferDuration);
+      let planned: number | null = sel?.minutes ?? null;
+      if (planned === -1) planned = transferCustom > 0 ? transferCustom : null;
 
-    // 1. Mark current session as "transferred" — keep prices computed for its game time, items remain
-    const rate = rates.find((r) => r.id === transferAsset.rate_profile_id);
-    const elapsedMin = Math.max(1, Math.ceil((Date.now() - new Date(transferSession.started_at).getTime()) / 60000));
-    const game = computePrice(rate, transferSession.player_count || 1, elapsedMin);
-    const { data: items } = await supabase.from("session_items").select("qty, price").eq("session_id", transferSession.id);
-    const itemsTotal = (items || []).reduce((s: number, i: any) => s + Number(i.qty) * Number(i.price), 0);
+      // 1. Mark current session as "transferred" — keep prices computed for its game time, items remain
+      const rate = rates.find((r) => r.id === transferAsset.rate_profile_id);
+      const elapsedMin = Math.max(1, Math.ceil((Date.now() - new Date(transferSession.started_at).getTime()) / 60000));
+      const game = computePrice(rate, transferSession.player_count || 1, elapsedMin);
+      const { data: items } = await supabase.from("session_items").select("qty, price").eq("session_id", transferSession.id);
+      const itemsTotal = (items || []).reduce((s: number, i: any) => s + Number(i.qty) * Number(i.price), 0);
 
-    await supabase.from("sessions").update({
-      ended_at: new Date().toISOString(), status: "transferred",
-      game_amount: game, items_amount: itemsTotal, total_amount: +(game + itemsTotal).toFixed(2),
-      payment_method: "transfer",
-    }).eq("id", transferSession.id);
-    await supabase.from("assets").update({ status: "available" }).eq("id", transferAsset.id);
+      await supabase.from("sessions").update({
+        ended_at: new Date().toISOString(), status: "transferred",
+        game_amount: game, items_amount: itemsTotal, total_amount: +(game + itemsTotal).toFixed(2),
+        payment_method: "transfer",
+      }).eq("id", transferSession.id);
+      await supabase.from("assets").update({ status: "available" }).eq("id", transferAsset.id);
 
-    // 2. Start new session linked to original
-    await supabase.from("sessions").insert({
-      cafe_id: cafeId, asset_id: target.id, customer_name: transferSession.customer_name,
-      started_by: user?.id, status: "active",
-      player_count: target.category === "ps5" ? transferPlayers : 1,
-      planned_minutes: planned,
-      parent_session_id: transferSession.id,
-    });
-    await supabase.from("assets").update({ status: "occupied" }).eq("id", target.id);
+      // 2. Start new session linked to original
+      const { error: insertError } = await supabase.from("sessions").insert({
+        cafe_id: cafeId, asset_id: target.id, customer_name: transferSession.customer_name,
+        started_by: user?.id, status: "active",
+        player_count: target.category === "ps5" ? transferPlayers : 1,
+        planned_minutes: planned,
+        parent_session_id: transferSession.id,
+      });
+      if (insertError) {
+        toast.error(insertError.message);
+        return;
+      }
 
-    await supabase.from("transfer_logs").insert({
-      cafe_id: cafeId, session_id: transferSession.id,
-      from_asset_id: transferAsset.id, to_asset_id: target.id, transferred_by: user?.id,
-    });
+      await supabase.from("assets").update({ status: "occupied" }).eq("id", target.id);
 
-    // Smart switch: OFF on source, ON on target (best-effort)
-    if (transferAsset.tuya_enabled === true && transferAsset.tuya_device_id) {
-      await applyTuyaForAsset(transferAsset as any, false, globalTuyaUrl, "transfer_out");
+      await supabase.from("transfer_logs").insert({
+        cafe_id: cafeId, session_id: transferSession.id,
+        from_asset_id: transferAsset.id, to_asset_id: target.id, transferred_by: user?.id,
+      });
+
+      // Smart switch: OFF on source, ON on target (best-effort)
+      if (transferAsset.tuya_enabled === true && transferAsset.tuya_device_id) {
+        await applyTuyaForAsset(transferAsset as any, false, globalTuyaUrl, "transfer_out");
+      }
+      if (target.tuya_enabled === true && target.tuya_device_id) {
+        const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "transfer_in");
+        if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
+      }
+
+      toast.success("Session transferred — bill carries forward");
+      setTransferAsset(null); setTransferSession(null); load();
+    } finally {
+      setIsProcessing(false);
     }
-    if (target.tuya_enabled === true && target.tuya_device_id) {
-      const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "transfer_in");
-      if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
-    }
-
-    toast.success("Session transferred — bill carries forward");
-    setTransferAsset(null); setTransferSession(null); load();
   };
 
   // ── Shift Asset: move the SAME live session to another asset (no data loss) ──
@@ -584,33 +608,40 @@ const amountDue = endAmount > 0 ? endAmount : 0;
     setShiftAsset(a); setShiftSession(session); setShiftTo("");
   };
   const confirmShift = async () => {
-    if (!shiftAsset || !shiftSession || !shiftTo || !cafeId) return;
+    if (!shiftAsset || !shiftSession || !shiftTo || !cafeId || isProcessing) return;
     const target = assets.find((x) => x.id === shiftTo);
     if (!target) return;
     if (target.id === shiftAsset.id) return toast.error("Pick a different asset");
     if (target.category !== shiftAsset.category) return toast.error("Can only shift within the same category");
     if (target.availability === "unavailable") return toast.error("Destination asset is currently unavailable.");
     if (target.status !== "available") return toast.error("Destination asset is not available");
-    const { data: { user } } = await supabase.auth.getUser();
-    const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));
-    hist.push({ from: shiftAsset.name, to: target.name, from_id: shiftAsset.id, to_id: target.id, time: new Date().toISOString() });
-    // Same session id, started_at, segments, items, advances — only the asset changes.
-    const { error } = await supabase.from("sessions").update({ asset_id: target.id, transfer_history: hist }).eq("id", shiftSession.id);
-    if (error) return toast.error(error.message);
-    await supabase.from("assets").update({ status: "available" }).eq("id", shiftAsset.id);
-    await supabase.from("assets").update({ status: "occupied" }).eq("id", target.id);
-    await supabase.from("transfer_logs").insert({
-      cafe_id: cafeId, session_id: shiftSession.id,
-      from_asset_id: shiftAsset.id, to_asset_id: target.id, transferred_by: user?.id,
-    });
-    // Smart switch OFF on source, ON on target (best-effort)
-    if (shiftAsset.tuya_enabled === true && shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
-    if (target.tuya_enabled === true && target.tuya_device_id) {
-      const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "shift_in");
-      if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
+    
+    setIsProcessing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const hist = ((shiftSession.transfer_history || []) as any[]).map((h) => ({ ...h }));
+      hist.push({ from: shiftAsset.name, to: target.name, from_id: shiftAsset.id, to_id: target.id, time: new Date().toISOString() });
+      // Same session id, started_at, segments, items, advances — only the asset changes.
+      const { error } = await supabase.from("sessions").update({ asset_id: target.id, transfer_history: hist }).eq("id", shiftSession.id);
+      if (error) return toast.error(error.message);
+      
+      await supabase.from("assets").update({ status: "available" }).eq("id", shiftAsset.id);
+      await supabase.from("assets").update({ status: "occupied" }).eq("id", target.id);
+      await supabase.from("transfer_logs").insert({
+        cafe_id: cafeId, session_id: shiftSession.id,
+        from_asset_id: shiftAsset.id, to_asset_id: target.id, transferred_by: user?.id,
+      });
+      // Smart switch OFF on source, ON on target (best-effort)
+      if (shiftAsset.tuya_enabled === true && shiftAsset.tuya_device_id) await applyTuyaForAsset(shiftAsset as any, false, globalTuyaUrl, "shift_out");
+      if (target.tuya_enabled === true && target.tuya_device_id) {
+        const r = await applyTuyaForAsset(target as any, true, globalTuyaUrl, "shift_in");
+        if (!r.ok) toast.warning(`Smart switch ON failed on ${target.name}: ${r.error}`);
+      }
+      toast.success(`Session shifted to ${target.name}`);
+      setShiftAsset(null); setShiftSession(null); setShiftTo(""); load();
+    } finally {
+      setIsProcessing(false);
     }
-    toast.success(`Session shifted to ${target.name}`);
-    setShiftAsset(null); setShiftSession(null); setShiftTo(""); load();
   };
 
   const beginEnd = async (asset: Asset) => {
@@ -663,14 +694,14 @@ const amountDue = endAmount > 0 ? endAmount : 0;
     const advancesTotal = (advs || []).reduce((s: number, a: any) => s + Number(a.amount || 0), 0);
     const settlement = +(total - advancesTotal).toFixed(2);
     console.log("END SESSION DEBUG", {
-  currentGame,
-  parentsGame,
-  game,
-  allItemsTotal,
-  total,
-  advancesTotal,
-  settlement
-});
+      currentGame,
+      parentsGame,
+      game,
+      allItemsTotal,
+      total,
+      advancesTotal,
+      settlement
+    });
 
     setChainSessionIds(chainIds);
     setChainAssetIds(chainAssets);
@@ -698,34 +729,34 @@ const amountDue = endAmount > 0 ? endAmount : 0;
     setPayMethod("cash"); setPayChosen(false); setCashAmt(0); setUpiAmt(0);
   };
   const removeAdvance = async (id: string) => {
-  if (!window.confirm("Remove this advance payment?")) return;
+    if (!window.confirm("Remove this advance payment?")) return;
 
-  const { error } = await supabase
-    .from("session_advances")
-    .delete()
-    .eq("id", id);
+    const { error } = await supabase
+      .from("session_advances")
+      .delete()
+      .eq("id", id);
 
-  if (error) {
-    toast.error(error.message);
-    return;
-  }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
 
-  toast.success("Advance removed");
+    toast.success("Advance removed");
 
-  if (endingAsset) {
-    await beginEnd(endingAsset);
-  }
-};
+    if (endingAsset) {
+      await beginEnd(endingAsset);
+    }
+  };
   const confirmEnd = async () => {
     
     if (!endingAsset || !endingSession) return;
     if (endAmount === 0) {
-  const ok = window.confirm(
-    "This session has no outstanding balance.\n\nClose the session?"
-  );
+      const ok = window.confirm(
+        "This session has no outstanding balance.\n\nClose the session?"
+      );
 
-  if (!ok) return;
-}
+      if (!ok) return;
+    }
     const grossTotal = +(endGame + endItems).toFixed(2);
     if (overrideOn) {
       const totalPaid = +(endAmount + endAdvances).toFixed(2);
@@ -733,37 +764,37 @@ const amountDue = endAmount > 0 ? endAmount : 0;
       if (totalPaid > grossTotal + 0.01) return toast.error(`Override (₹${totalPaid.toFixed(2)}) cannot exceed bill ₹${grossTotal.toFixed(2)}`);
     }
     if (endAmount > 0 && !payChosen) {
-  return toast.error("Please select a payment method");
-}
-   let cash = 0, upi = 0;
-
-if (endAmount > 0) {
-  if (payMethod === "cash") {
-    cash = endAmount;
-  } else if (payMethod === "upi") {
-    upi = endAmount;
-  } else {
-    cash = cashAmt;
-    upi = upiAmt;
-
-    if (Math.abs(cash + upi - endAmount) > 0.01) {
-      return toast.error("Cash + UPI must equal total");
+      return toast.error("Please select a payment method");
     }
-  }
-}
-if (endAmount < 0) {
-    const refund = Math.abs(endAmount);
+    let cash = 0, upi = 0;
 
-    if (payMethod === "cash") {
-        cash = -refund;
-    } else if (payMethod === "upi") {
-        upi = -refund;
+    if (endAmount > 0) {
+      if (payMethod === "cash") {
+        cash = endAmount;
+      } else if (payMethod === "upi") {
+        upi = endAmount;
+      } else {
+        cash = cashAmt;
+        upi = upiAmt;
+
+        if (Math.abs(cash + upi - endAmount) > 0.01) {
+          return toast.error("Cash + UPI must equal total");
+        }
+      }
     }
-}
+    if (endAmount < 0) {
+      const refund = Math.abs(endAmount);
+
+      if (payMethod === "cash") {
+          cash = -refund;
+      } else if (payMethod === "upi") {
+          upi = -refund;
+      }
+    }
 
     // total_amount = gross bill (game + items), unaffected by override or advances.
     // override_amount (when set) = effective amount the customer paid in total
-    //   (= what they pay at end + any advances already paid).
+    //    (= what they pay at end + any advances already paid).
     // cash_amount / upi_amount = what was collected at end-of-session only.
     // Advances are tracked in session_advances and added on top in analytics.
     const effectivePaid = overrideOn ? +(endAmount + endAdvances).toFixed(2) : null;
@@ -775,7 +806,7 @@ if (endAmount < 0) {
       applied_offer_id: endOfferId !== "none" ? endOfferId : null,
       payment_method: endAmount === 0 ? "advance" : payMethod, cash_amount: cash, upi_amount: upi,
       refund_amount: endAmount < 0 ? Math.abs(endAmount) : 0,
-  refund_method: endAmount < 0 ? payMethod : null,
+      refund_method: endAmount < 0 ? payMethod : null,
     }).eq("id", endingSession.id);
     if (updErr) return toast.error(updErr.message);
 
@@ -1193,7 +1224,9 @@ if (endAmount < 0) {
                   onChange={(e) => setCustomMinutes(Number(e.target.value))} placeholder="Minutes" />
               )}
             </div>
-            <Button onClick={startSession} className="w-full bg-gradient-primary text-primary-foreground">Start session</Button>
+            <Button onClick={startSession} disabled={isProcessing} className="w-full bg-gradient-primary text-primary-foreground">
+              {isProcessing ? "Starting..." : "Start session"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1322,8 +1355,8 @@ if (endAmount < 0) {
                   onChange={(e) => setTransferCustom(Number(e.target.value))} />
               )}
             </div>
-            <Button onClick={confirmTransfer} disabled={!transferTo} className="w-full bg-gradient-primary text-primary-foreground">
-              Transfer
+            <Button onClick={confirmTransfer} disabled={!transferTo || isProcessing} className="w-full bg-gradient-primary text-primary-foreground">
+              {isProcessing ? "Transferring..." : "Transfer"}
             </Button>
           </div>
         </DialogContent>
@@ -1382,9 +1415,6 @@ if (endAmount < 0) {
                         <span className="font-mono">₹{endGame.toFixed(2)}</span>
                       </div>
                       <div className="h-px bg-border/60 my-1" />
-                      {/* <p className="text-red-500 text-xs">
-                        {JSON.stringify(endAdvanceDetails)}
-                      </p> */}
                       {endAdvanceDetails.map((adv) => (
                         <div
                           key={adv.id}
@@ -1580,18 +1610,18 @@ if (endAmount < 0) {
                 <div className="border-t border-border p-4 shrink-0 flex flex-wrap items-center justify-between gap-3 bg-card/60">
                   <div>
                     {endAmount > 0 ? (
-    <div className="text-red-400 font-bold text-xl">
-        Customer Pays ₹{amountDue.toFixed(2)}
-    </div>
-) : endAmount < 0 ? (
-    <div className="text-orange-400 font-bold text-xl">
-        Refund Customer ₹{refund.toFixed(2)}
-    </div>
-) : (
-    <div className="text-green-400 font-bold text-xl">
-        Fully Settled
-    </div>
-)}
+                      <div className="text-red-400 font-bold text-xl">
+                        Customer Pays ₹{amountDue.toFixed(2)}
+                      </div>
+                    ) : endAmount < 0 ? (
+                      <div className="text-orange-400 font-bold text-xl">
+                        Refund Customer ₹{refund.toFixed(2)}
+                      </div>
+                    ) : (
+                      <div className="text-green-400 font-bold text-xl">
+                        Fully Settled
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setEndingAsset(null)}>Keep Open</Button>
@@ -1711,8 +1741,8 @@ if (endAmount < 0) {
                 );
               })()}
             </div>
-            <Button onClick={confirmShift} disabled={!shiftTo} className="w-full bg-gradient-primary text-primary-foreground">
-              Shift session
+            <Button onClick={confirmShift} disabled={!shiftTo || isProcessing} className="w-full bg-gradient-primary text-primary-foreground">
+              {isProcessing ? "Shifting..." : "Shift session"}
             </Button>
           </div>
         </DialogContent>

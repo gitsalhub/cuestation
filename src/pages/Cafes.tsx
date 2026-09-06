@@ -10,7 +10,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import {
   Plus,
   Calendar,
-  UserPlus,
   Copy,
   Trash2,
   KeyRound,
@@ -44,8 +43,7 @@ const Cafes = () => {
   const [resetOutput, setResetOutput] = useState<{ email: string; tempPassword: string } | null>(null);
   const [impersonating, setImpersonating] = useState(false);
   const [customPwd, setCustomPwd] = useState<Record<string, string>>({});
-  const [subscriptionType, setSubscriptionType] =
-  useState<"trial" | "paid">("paid");
+  const [subscriptionType, setSubscriptionType] = useState<"trial" | "paid">("paid");
   const [search, setSearch] = useState("");
 
   // Detect saved super admin session for "Return to Super Admin"
@@ -80,18 +78,20 @@ const Cafes = () => {
   const activeCafes = cafes.filter((c) => c.active && (!c.subscription_expires_at || new Date(c.subscription_expires_at) > new Date())).length;
   const expiringSoon = cafes.filter((c) => c.subscription_expires_at && new Date(c.subscription_expires_at) > new Date() && (new Date(c.subscription_expires_at).getTime() - Date.now()) < 7 * 86400000).length;
   const filteredCafes = cafes.filter((c) => {
-  const q = search.toLowerCase();
-
-  return (
-    c.name.toLowerCase().includes(q) ||
-    (c.admins ?? []).some((a: any) =>
-      (a.email || "").toLowerCase().includes(q)
-    )
-  );
-});
+    const q = search.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.admins ?? []).some((a: any) => (a.email || "").toLowerCase().includes(q))
+    );
+  });
 
   const save = async () => {
-    const payload: any = { name, active, subscription_expires_at: expires ? new Date(expires).toISOString() : null, logo_url: logoUrl || null };
+    let finalExpires = null;
+    if (expires) {
+      finalExpires = subscriptionType === "trial" ? `${expires}T23:59:59.000Z` : `${expires}T00:00:00.000Z`;
+    }
+
+    const payload: any = { name, active, subscription_expires_at: finalExpires, logo_url: logoUrl || null };
     const { error } = editing
       ? await supabase.from("cafes").update(payload).eq("id", editing.id)
       : await supabase.from("cafes").insert(payload);
@@ -118,11 +118,16 @@ const Cafes = () => {
     if (!iEmail || !iCafeName) return toast.error("Email and cafe name required");
     setILoading(true);
     try {
+      let finalExpires = null;
+      if (expires) {
+        finalExpires = subscriptionType === "trial" ? `${expires}T23:59:59.000Z` : `${expires}T00:00:00.000Z`;
+      }
+
       const { data, error } = await supabase.functions.invoke("create-cafe-admin", {
         body: {
           email: iEmail, fullName: iFullName, cafeName: iCafeName,
           password: iPassword || undefined,
-          subscriptionExpiresAt: expires ? new Date(expires).toISOString() : null,
+          subscriptionExpiresAt: finalExpires,
         },
       });
       if (error) throw error;
@@ -156,7 +161,6 @@ const Cafes = () => {
   const loginAsCafe = async (email: string) => {
     setImpersonating(true);
     try {
-      // Save current super-admin session first
       const { data: sess } = await supabase.auth.getSession();
       if (sess?.session) {
         localStorage.setItem("super_admin_session", JSON.stringify({
@@ -171,7 +175,6 @@ const Cafes = () => {
         localStorage.removeItem("super_admin_session");
         throw new Error(error?.message || data?.error);
       }
-      // Magic link will sign us in as the cafe admin
       window.location.href = data.actionLink;
     } catch (e: any) {
       toast.error(e.message || "Failed to impersonate");
@@ -207,9 +210,6 @@ const Cafes = () => {
             <Button variant="outline" onClick={() => { setCreatedCreds(null); setInviteOpen(true); }}className="bg-gradient-primary text-primary-foreground">
               <Plus className="w-4 h-4 mr-1" />Create cafe
             </Button>
-            {/* <Button onClick={() => { setEditing(null); setName(""); setExpires(""); setActive(true); setLogoUrl(""); setOpen(true); }} className="bg-gradient-primary text-primary-foreground">
-              <Plus className="w-4 h-4 mr-1" />Add cafe
-            </Button> */}
           </div>
         } />
 
@@ -219,81 +219,66 @@ const Cafes = () => {
         <Card className="glass-card p-4"><div className="text-xs text-muted-foreground">Expiring within 7 days</div><div className="text-2xl font-bold text-orange-500">{expiringSoon}</div></Card>
       </div>
       <div className="mb-6 flex justify-end">
-  <div className="relative w-full sm:w-80">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-
-    <Input
-      value={search}
-      onChange={(e) => setSearch(e.target.value)}
-      placeholder="Search cafe"
-      className="pl-10"
-    />
-  </div>
-</div>
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search cafe" className="pl-10" />
+        </div>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
        {filteredCafes.map((c) => {
-          const exp = c.subscription_expires_at ? new Date(c.subscription_expires_at) : null;
-          const expired = exp && exp.getTime() < Date.now();
-          return (
-            <Card key={c.id} className="glass-card p-5">
-              <div className="flex items-center justify-between mb-1">
-                <div className="font-bold">{c.name}</div>
-                <span className={`text-[10px] px-2 py-0.5 rounded ${c.active && !expired ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
-                  {c.active && !expired ? "Active" : "Inactive"}
-                </span>
-              </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
-                <Calendar className="w-3 h-3" />
-                {exp ? `Expires ${exp.toLocaleDateString()}` : "No expiry set"}
-              </div>
-              <div className="text-xs text-muted-foreground mb-3 truncate">
-                Admin: {c.admins?.length ? c.admins.map((a: any) => a.email).join(", ") : "—"}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                <Button size="sm" variant="outline" onClick={() => {
-setEditing(c);
-setName(c.name);
-setActive(c.active);
-setLogoUrl(c.logo_url || "");
+         const exp = c.subscription_expires_at ? new Date(c.subscription_expires_at) : null;
+         const expired = exp && exp.getTime() < Date.now();
+         return (
+           <Card key={c.id} className="glass-card p-5">
+             <div className="flex items-center justify-between mb-1">
+               <div className="font-bold">{c.name}</div>
+               <span className={`text-[10px] px-2 py-0.5 rounded ${c.active && !expired ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                 {c.active && !expired ? "Active" : "Inactive"}
+               </span>
+             </div>
+             <div className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+               <Calendar className="w-3 h-3" />
+               {exp ? `Expires ${exp.toLocaleDateString()}` : "No expiry set"}
+             </div>
+             <div className="text-xs text-muted-foreground mb-3 truncate">
+               Admin: {c.admins?.length ? c.admins.map((a: any) => a.email).join(", ") : "—"}
+             </div>
+             <div className="flex flex-wrap gap-1">
+               <Button size="sm" variant="outline" onClick={() => {
+                setEditing(c);
+                setName(c.name);
+                setActive(c.active);
+                setLogoUrl(c.logo_url || "");
 
-const exp = c.subscription_expires_at
-  ? new Date(c.subscription_expires_at)
-  : null;
+                const expStr = c.subscription_expires_at || "";
+                if (expStr) {
+                  // Bypass timezone issues by slicing the string directly
+                  setExpires(expStr.substring(0, 10));
+                  setSubscriptionType(expStr.includes("23:59") ? "trial" : "paid");
+                } else {
+                  setExpires("");
+                  setSubscriptionType("paid");
+                }
 
-if (exp) {
-  setExpires(exp.toISOString().slice(0, 10));
-
-  // Treat approximately 30-day subscriptions as Trial
-  const diffDays = Math.round(
-    (exp.getTime() - new Date(c.created_at).getTime()) / 86400000
-  );
-
-  setSubscriptionType(diffDays <= 31 ? "trial" : "paid");
-} else {
-  setExpires("");
-  setSubscriptionType("paid");
-}
-
-setOpen(true);                  setExpires(c.subscription_expires_at ? new Date(c.subscription_expires_at).toISOString().slice(0, 10) : "");
-                  setOpen(true);
+                setOpen(true);
                 }}>Edit</Button>
-                <Button size="sm" variant="outline" onClick={() => { setResetOutput(null); setCredsOpen(c); }}>
-                  <KeyRound className="w-3 h-3 mr-1" />Credentials
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => setConfirmDel(c)}>
-                  <Trash2 className="w-3 h-3 mr-1" />Delete
-                </Button>
-              </div>
-            </Card>
-          );
-        })}
-{filteredCafes.length === 0 && (
-  <Card className="glass-card p-8 col-span-full text-center">
-    <p className="text-muted-foreground">
-      No cafes found.
-    </p>
-  </Card>
-)}      </div>
+               <Button size="sm" variant="outline" onClick={() => { setResetOutput(null); setCredsOpen(c); }}>
+                 <KeyRound className="w-3 h-3 mr-1" />Credentials
+               </Button>
+               <Button size="sm" variant="destructive" onClick={() => setConfirmDel(c)}>
+                 <Trash2 className="w-3 h-3 mr-1" />Delete
+               </Button>
+             </div>
+           </Card>
+         );
+       })}
+       {filteredCafes.length === 0 && (
+         <Card className="glass-card p-8 col-span-full text-center">
+           <p className="text-muted-foreground">No cafes found.</p>
+         </Card>
+       )}
+      </div>
 
       {/* Create/Edit cafe */}
       <Dialog open={open} onOpenChange={setOpen}>
@@ -301,52 +286,43 @@ setOpen(true);                  setExpires(c.subscription_expires_at ? new Date(
           <DialogHeader><DialogTitle>{editing ? "Edit" : "New"} cafe</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-<div className="space-y-3">
-
-    <Label>Subscription Type</Label>
-
-    <div className="flex gap-4">
-
-        <label className="flex items-center gap-2">
-            <input
-                type="radio"
-                checked={subscriptionType === "trial"}
-                onChange={() => {
-                    setSubscriptionType("trial");
-
-                    const d = new Date();
-                    d.setDate(d.getDate() + 30);
-
-                    setExpires(d.toISOString().slice(0,10));
-                }}
-            />
-            Trial (30 Days)
-        </label>
-
-        <label className="flex items-center gap-2">
-            <input
-                type="radio"
-                checked={subscriptionType === "paid"}
-                onChange={() => {
-                    setSubscriptionType("paid");
-                    setExpires("");
-                }}
-            />
-            Paid
-        </label>
-
-    </div>
-
-    <Label>Subscription expires</Label>
-
-    <Input
-        type="date"
-        value={expires}
-        disabled={subscriptionType === "trial"}
-        onChange={(e)=>setExpires(e.target.value)}
-    />
-
-</div>            <div className="flex items-center justify-between p-2 rounded border border-border">
+            <div className="space-y-3">
+              <Label>Subscription Type</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={subscriptionType === "trial"}
+                    onChange={() => {
+                      setSubscriptionType("trial");
+                      const d = new Date();
+                      d.setDate(d.getDate() + 30);
+                      setExpires(d.toISOString().slice(0,10));
+                    }}
+                  />
+                  Trial (30 Days)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={subscriptionType === "paid"}
+                    onChange={() => {
+                      setSubscriptionType("paid");
+                      setExpires("");
+                    }}
+                  />
+                  Paid
+                </label>
+              </div>
+              <Label>Subscription expires</Label>
+              <Input
+                type="date"
+                value={expires}
+                disabled={subscriptionType === "trial"}
+                onChange={(e)=>setExpires(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between p-2 rounded border border-border">
               <Label>Active</Label>
               <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} className="w-5 h-5" />
             </div>
@@ -354,8 +330,7 @@ setOpen(true);                  setExpires(c.subscription_expires_at ? new Date(
               <Label>Logo</Label>
               <div className="flex items-center gap-3">
                 {logoUrl && <img src={logoUrl} alt="logo" className="w-14 h-14 rounded object-cover border border-border" />}
-                <Input type="file" accept="image/*" disabled={uploadingLogo}
-                  onChange={(e) => e.target.files?.[0] && onLogoFile(e.target.files[0])} />
+                <Input type="file" accept="image/*" disabled={uploadingLogo} onChange={(e) => e.target.files?.[0] && onLogoFile(e.target.files[0])} />
                 {logoUrl && <Button size="sm" variant="ghost" onClick={() => setLogoUrl("")}>Clear</Button>}
               </div>
             </div>
@@ -384,71 +359,50 @@ setOpen(true);                  setExpires(c.subscription_expires_at ? new Date(
               <div><Label>Admin full name</Label><Input value={iFullName} onChange={(e) => setIFullName(e.target.value)} /></div>
               <div><Label>Admin email *</Label><Input type="email" value={iEmail} onChange={(e) => setIEmail(e.target.value)} /></div>
               <div><Label>Temporary password (optional)</Label><Input value={iPassword} onChange={(e) => setIPassword(e.target.value)} placeholder="auto-generated if blank" /></div>
-<div className="space-y-3">
+              
+              <div className="space-y-3">
+                <Label>Subscription Type</Label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={subscriptionType === "trial"}
+                      onChange={() => {
+                        setSubscriptionType("trial");
+                        const d = new Date();
+                        d.setDate(d.getDate() + 30);
+                        setExpires(d.toISOString().slice(0,10));
+                      }}
+                    />
+                    Trial (30 Days)
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={subscriptionType === "paid"}
+                      onChange={() => {
+                        setSubscriptionType("paid");
+                        setExpires("");
+                      }}
+                    />
+                    Paid Subscription
+                  </label>
+                </div>
 
-    <Label>Subscription Type</Label>
+                {subscriptionType === "trial" ? (
+                  <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
+                    <div className="font-medium text-green-400">✓ Trial expires on</div>
+                    <div className="text-sm mt-1">{expires ? new Date(expires).toLocaleDateString() : ""}</div>
+                  </div>
+                ) : (
+                  <div>
+                    <Label>Subscription Expiry</Label>
+                    <Input type="date" value={expires} onChange={(e)=>setExpires(e.target.value)} />
+                  </div>
+                )}
+              </div>
 
-    <div className="flex gap-4">
-
-        <label className="flex items-center gap-2">
-            <input
-                type="radio"
-                checked={subscriptionType === "trial"}
-                onChange={() => {
-                    setSubscriptionType("trial");
-
-                    const d = new Date();
-                    d.setDate(d.getDate() + 30);
-
-                    setExpires(d.toISOString().slice(0,10));
-                }}
-            />
-            Trial (30 Days)
-        </label>
-
-        <label className="flex items-center gap-2">
-            <input
-                type="radio"
-                checked={subscriptionType === "paid"}
-                onChange={() => {
-                    setSubscriptionType("paid");
-                    setExpires("");
-                }}
-            />
-            Paid Subscription
-        </label>
-
-    </div>
-
-    {subscriptionType === "trial" ? (
-
-        <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-3">
-
-            <div className="font-medium text-green-400">
-                ✓ Trial expires on
-            </div>
-
-            <div className="text-sm mt-1">
-                {new Date(expires).toLocaleDateString()}
-            </div>
-
-        </div>
-
-    ) : (
-
-        <div>
-            <Label>Subscription Expiry</Label>
-
-            <Input
-                type="date"
-                value={expires}
-                onChange={(e)=>setExpires(e.target.value)}
-            />
-        </div>
-
-    )}
-
-</div>              <Button onClick={inviteAdmin} disabled={iLoading} className="w-full bg-gradient-primary text-primary-foreground">
+              <Button onClick={inviteAdmin} disabled={iLoading} className="w-full bg-gradient-primary text-primary-foreground">
                 {iLoading ? "Creating..." : "Create admin & cafe"}
               </Button>
             </div>
@@ -505,7 +459,7 @@ setOpen(true);                  setExpires(c.subscription_expires_at ? new Date(
           <AlertDialogHeader>
             <AlertDialogTitle>Permanently delete {confirmDel?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the cafe and ALL related data: assets, sessions, bills, products, expenses, bookings, staff, analytics, and admin accounts.
+              This removes the cafe and ALL related data.
               <br /><br />
               <span className="text-destructive font-semibold">This action cannot be undone.</span>
             </AlertDialogDescription>

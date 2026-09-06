@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CashDrawerProvider } from "@/contexts/CashDrawerContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -29,6 +29,35 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+// Create the Watermark component
+const GlobalWatermark = () => {
+  const { subscriptionExpiresAt } = useAuth();
+
+  if (!subscriptionExpiresAt) return null;
+
+  // Bypass timezone shifts by checking the raw string from the database
+  const expStr = String(subscriptionExpiresAt);
+  const isTrial = expStr.includes("23:59");
+  
+  if (!isTrial) return null; // Hide completely for Paid subscriptions
+
+  const exp = new Date(subscriptionExpiresAt);
+  const diffDays = Math.ceil((exp.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[9999] pointer-events-none bg-background/70 backdrop-blur-sm border border-border px-3 py-2 rounded-lg shadow-lg flex flex-col items-end">
+      <span className="text-xs font-bold text-primary uppercase tracking-widest">
+        Trial Version
+      </span>
+      <span className="text-[10px] text-muted-foreground font-medium mt-0.5">
+        {diffDays} day{diffDays !== 1 ? "s" : ""} remaining
+      </span>
+    </div>
+  );
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -37,6 +66,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
+            <GlobalWatermark />
             <CashDrawerProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />

@@ -95,8 +95,16 @@ const Counter = () => {
       qty: i.qty, price: i.product.price,
     })));
     for (const i of cart) {
-      await supabase.from("products").update({ stock: Math.max(0, i.product.stock - i.qty) }).eq("id", i.product.id);
-    }
+  const { error: updateError } = await supabase
+    .from("products")
+    .update({ stock: Math.max(0, i.product.stock - i.qty) })
+    .eq("id", i.product.id);
+    
+  if (updateError) {
+    console.error("Failed to update stock for", i.product.name, updateError);
+    toast.error(`Failed to update stock for ${i.product.name}`);
+  }
+}
     toast.success(`Bill created: ₹${total.toFixed(2)}`);
     setCart([]); setCustomer("");
     setPayMethod("cash");
